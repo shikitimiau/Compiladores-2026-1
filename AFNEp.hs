@@ -60,57 +60,123 @@ getAFNEp s = expr_to_AFNEp (getRegex s)
 -- y devolvemos un automáta no determinista con transiciones epsilón.
 -- ------------------------------------------------------------------------------
 expr_to_AFNEp :: Regex -> AFNEp
-expr_to_AFNEp e = expr_to_AFNEp_aux e [] -- La lista va a representar los estados del automáta.
+expr_to_AFNEp e = fst (expr_to_AFNEp_aux e 0) -- Contador para no repetir nombres de estados
 
 
 -- ------------------------------------------------------------------------------
 -- Función auxiliar para realizar el autómata finito no determinista con
 -- transiciones epsilon de una regex válida.
 -- ------------------------------------------------------------------------------
-expr_to_AFNEp_aux :: Regex -> [String] ->  AFNEp
--- Caso base, cuando tenemos un terminal (carácter) y q es la lista de estados.
+expr_to_AFNEp_aux :: Regex -> Int -> (AFNEp, Int)
+-- Caso base, cuando tenemos un terminal (caracter) y q es la lista de estados.
 -- Con esto se define el automáta que reconoce el carácter a.
-expr_to_AFNEp_aux (Symbol a) q = AFNEp {estados = q++[q0, q1], --definimos dos estados, el inicial y a donde llegamos con a.
-                                    alfabeto =  [a], -- agregamos el caracter al alfabeto
-                                    transiciones = [(q0, Just a, [q1])], --definimos la transición del estado inicial al final con el caracter a
-                                    inicial = q0, final = q1}
-  where q0 = "q"++(show (length q)) -- q0
-        q1 = "q"++(show ((length q) + 1)) -- q1
+expr_to_AFNEp_aux (Symbol a) n =
+  (AFNEp { 
+           -- Agregamos al Automata
+           -- Estados nuevos para ir de uno al otro con el simbolo que se indique
+           estados = [q0, q1], 
+           -- Simbolo indicado ahora forma parte del alfabeto 
+           alfabeto = [a], 
+           -- Nueva transicion de q0 a q1 con el simbolo especificado
+           transiciones = [(q0, Just a, [q1])], 
+           -- especificamos quien es el estado inicial y quien es el final 
+           inicial = q0,
+           final = q1 },
+   n + 2) -- Contamos 2 estados mas que fueron añadidos en este paso
+  where
+    q0 = "q" ++ show n
+    q1 = "q" ++ show (n + 1)
 
 -- Automáta para la expresión a+b
-expr_to_AFNEp_aux (Union a b) q =  AFNEp {estados = (estados m2) ++ [q0, q1], --accedemos a los estados de m2 y agregamos dos nuevos estados, el inicial y el final
-                                    alfabeto =  rmDup $  (alfabeto m1) ++ (alfabeto m2), --unimos los alfabetos de m1 y m2 y eliminamos duplicados
-                                    transiciones = (transiciones m1) ++ (transiciones m2)
-                                      ++ [(q0, Nothing, [(inicial m1),(inicial m2)]), --Agregamos las transiciones epsilón del nuevo estado inicial a los iniciales de m1 y m2
-                                         (final m1, Nothing, [q1]), -- Y de los finales de m1 y m2 al nuevo estado final
-                                         (final m2, Nothing, [q1])],
-                                    inicial = q0, final = q1} --Actualizamos los estados inicial y final
-  where m1 = expr_to_AFNEp_aux a q -- Construimos el automáta para a
-        m2 = expr_to_AFNEp_aux b (q++(estados m1)) -- Construimos el automáta para b, agregando los estados de m1 a la lista de estados
-        q0 = "q"++(show  (length $ estados m2)) -- Sacrificamos el nombre q0 y q1 para que no se repitan, pero sigue siendo el estado inicial y final
-        q1 = "q"++(show  ((length $ estados m2) + 1))
+expr_to_AFNEp_aux (Union a b) n =
+  (AFNEp { 
+           -- Agregamos al automata:
+           -- Estados del automata que corresponde al parametro a,
+           -- estados del automata que corresponde al parametro b 
+           -- y dos estados para definir como nuevos estados inicial y final
+           estados = estados m1 ++ estados m2 ++ [q0, q1],
+           -- Realizamos la union de los alfabetos de ambos automatas eliminando replicados
+           alfabeto = rmDup $ alfabeto m1 ++ alfabeto m2,
+           -- Consideramos las transiciones del automata correspondiente al parametro a
+           -- transiciones del automata que corresponde al parametro b
+           -- agregamos transicion de q0 (nuevo inicial) a los iniciales de a,b
+           -- agregamos transicion de los estados finales de a,b hacia el nuevo final q1
+           transiciones = transiciones m1 ++ transiciones m2
+                          ++ [(q0, Nothing, [inicial m1, inicial m2]),
+                              (final m1, Nothing, [q1]),
+                              (final m2, Nothing, [q1])],
+           -- especificamos como estado inicial q0 y como estado final q1
+           inicial = q0,
+           final = q1 },
+   n') -- El contador actualizado es: cantidad de estados en a + cantidad de estados en b + 2 nuevos
+  where
+    -- Construimos el automata que corresponde al parametro a con el contador inicial n
+    (m1, na) = expr_to_AFNEp_aux a n
+    -- Construimos el automata que corresponde al parametro b con el contador
+    -- actualizado después de haber creado m1
+    (m2, nb) = expr_to_AFNEp_aux b na
+    -- Nombramos los nuevos estados inicial y final de la unión considerando el contador
+    -- actualizado luego de construir m2
+    q0 = "q" ++ show nb
+    q1 = "q" ++ show (nb + 1)
+    n' = nb + 2  -- Incrementamos contador con los dos nuevos estados q0,q1
 
 -- Automata para la expresion ab
-expr_to_AFNEp_aux (Concat a b) q =  AFNEp {estados = estados m2,
-                                    alfabeto =  rmDup $ (alfabeto m1) ++ (alfabeto m2),
-                                    transiciones = (transiciones m1) ++ (transiciones m2)
-                                      ++ [(final m1, Nothing, [inicial m2])],
-                                    inicial = inicial m1, final = final m2}
-  where m1 = expr_to_AFNEp_aux a q
-        m2 = expr_to_AFNEp_aux b (q++(estados m1))
+expr_to_AFNEp_aux (Concat a b) n =
+  (AFNEp { 
+           -- Agregamos al automata:
+           -- Estados del automata que corresponde al parametro a,
+           -- estados del automata que corresponde al parametro b
+           estados = estados m1 ++ estados m2,
+           -- Realizamos la union de los alfabetos de ambos automatas eliminando replicados
+           alfabeto = rmDup $ alfabeto m1 ++ alfabeto m2,
+           -- Consideramos las transiciones del automata correspondiente al parametro a
+           -- transiciones del automata que corresponde al parametro b
+           -- agregamos la epsilon transicion del estado final de el automata a
+           -- al estado inicial del automata correspondiente a b
+           transiciones = transiciones m1 ++ transiciones m2
+                          ++ [(final m1, Nothing, [inicial m2])],
+           -- especificamos como estado inicial al inicial del automata a
+           inicial = inicial m1,
+           -- especificamos como estado final, al final del automata b
+           final = final m2 },
+   n') -- El contador actualizado es: estados de a + estados de b
+  where
+    -- Construimos el automata que corresponde al parametro a con el contador inicial n
+    (m1, na) = expr_to_AFNEp_aux a n
+    -- Construimos el automata que corresponde al parametro b con el contador
+    -- actualizado después de haber creado m1
+    (m2, n') = expr_to_AFNEp_aux b na
 
 -- Autómata para la expresión a*
-expr_to_AFNEp_aux (Star a) q =  AFNEp {estados = (estados m1) ++ [q0, q1],
-                                    alfabeto =  (alfabeto m1),
-                                    transiciones = (transiciones m1)
-                                      ++ [(q0, Nothing, [qi, q1]),
-                                         (qf, Nothing, [qi, q1])],
-                                    inicial = q0, final = q1}
-  where m1 = expr_to_AFNEp_aux a q
-        q0 = "q"++(show  (length $ estados m1))
-        q1 = "q"++(show  ((length $ estados m1) + 1))
-        qi = inicial m1
-        qf = final m1
+expr_to_AFNEp_aux (Star a) n =
+  (AFNEp { 
+           -- Agregamos al automata:
+           -- Estados del automata que corresponde al parametro y dos nuevos
+           -- que seran el nuevo inicial y nuevo final
+           estados      = estados m1 ++ [q0, q1],
+           -- el alfabeto es el mismo que el del automata que corresponde al parametro
+           alfabeto     = alfabeto m1,
+           -- Consideramos las transiciones del automata correspondiente al parametro
+           -- agregamos la epsilon transicion de q0 al estado inicial del automata
+           -- que corresponde al parametro y al nuevo estado final q1
+           -- agregamos la transicion del estado final del automata correspondiente 
+           -- al parametro hacia el estado inicial de éste y hacia el nuevo final q1
+           transiciones = transiciones m1
+                          ++ [(q0, Nothing, [inicial m1, q1]),
+                              (final m1, Nothing, [inicial m1, q1])],
+           -- especificamos como estado inicial q0 y como estado final q1
+           inicial      = q0,
+           final        = q1 },
+   n') --  El contador actualizado es: estados del automata a + 2 nuevos 
+  where
+    -- Construimos el automata que corresponde al parametro con el contador inicial n
+    (m1, na) = expr_to_AFNEp_aux a n
+    -- Nombramos los nuevos estados inicial y final de la unión considerando el contador
+    -- actualizado luego de construir m1
+    q0 = "q" ++ show na
+    q1 = "q" ++ show (na + 1)
+    n' = na + 2 -- Incrementamos contador con los dos nuevos estados q0,q1
 
 
 -- ------------------------------------------------------------------------------

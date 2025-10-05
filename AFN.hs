@@ -44,6 +44,14 @@ data AFN = AFN {
 
 
 -- ------------------------------------------------------------------------------
+-- Función que dada una cadena, obtiene la representación de su expresión regular
+-- y, en caso de que exista, genera el autómata no determinista para la regex.
+-- Si no existe, notifica la ausencia de la expresion regular.
+-- ------------------------------------------------------------------------------
+getAFN :: String -> AFN
+getAFN s = afnEp_to_AFN (getAFNEp s)
+
+-- ------------------------------------------------------------------------------
 -- Función que convierte un AFNEp (autómata finito no determinista con
 -- transiciones epsilón) a AFN (autómata finito no determinista)
 -- ------------------------------------------------------------------------------
@@ -55,7 +63,6 @@ afnEp_to_AFN m =  AFN {
   inicialN = inicial m,
   finalN = final m
   }
-
 
 
 -- ------------------------------------------------------------------------------

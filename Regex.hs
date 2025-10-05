@@ -1,27 +1,54 @@
+-- | Proyecto 1: Constructor de un analizador lexico
+-- | Etapa: Reconocimiento de expresiones regulares (regex)
+-- | Equipo: Discípulos de Church
+-- | Integrantes: 
+-- | > Cabrera Sánchez Ana Dhamar
+-- | > López Prado Emiliano
+-- | > Peña Mata Juan Luis
+-- | > Rodríguez Miranda Alexia
+-- | > Rosas Franco Diego Angel
 module Regex where
 
+-- ------------------------------------------------------------------------------
+-- Definicion del tipo de dato Regex para representar una expresión regular
+-- Constructores: 
+-- > Symbol. Regex de un solo caracter: a
+-- > Concat. Concatenacion de dos regex: EE
+-- > Union. Union de dos regex: E + E
+-- > Star. Teorema de Kleene: E*
+-- ------------------------------------------------------------------------------
 data Regex = Symbol Char 
            | Concat Regex Regex 
            | Union Regex Regex 
            | Star Regex
            deriving (Show, Eq)
 
+
+-- ------------------------------------------------------------------------------
+-- Función para obtener la representación de la expresión regular
+-- Usamos Nothing para representar la ausencia de expresión (el inicio), y
+-- Just para representar una expresión válida
+-- ------------------------------------------------------------------------------
 getRegex :: String -> Regex
---Usamos Nothing para representar la ausencia de expresión (el inicio), y Just Regex para una expresión válida
 getRegex s = case getRegexAux Nothing s of
               Just expr -> expr
               Nothing -> error "Expresión vacía no permitida"
 
---Función auxiliar que maneja el acumulador como Maybe Regex, string la cadena por procesar y devuelve Maybe Regex
+-- ------------------------------------------------------------------------------
+-- Función auxiliar que procesa un string y determina si es posible crear una
+-- Regex valida segun el constructor o no lo es.
+-- Si es posible generar la Regex, devuelve el acumulador con su representación.
+-- Si no es posible generar una Regex valida, devuelve Nothing.
+-- ------------------------------------------------------------------------------
 getRegexAux :: Maybe Regex -> String -> Maybe Regex
-getRegexAux acc [] = acc -- Caso base: cadena vacía
-
-getRegexAux acc [x] -- Caso base: cadena de un solo caracter
+-- Caso base: cadena vacía
+getRegexAux acc [] = acc
+ -- Caso base: cadena de un solo caracter
+getRegexAux acc [x]
     | x == ')' = acc -- caso donde termina una subexpresión
     | otherwise = case acc of
                   Nothing -> Just (Symbol x) -- Solo un símbolo
                   Just a -> Just (Concat a (Symbol x)) -- Concatenamos con lo que ya teníamos
-
 getRegexAux acc (x:xs)
     | x == '(' = -- Si encontramos un '(', buscamos el contenido hasta el paréntesis de cierre correspondiente
         let (insideStr, restAfterParen) = extractParenthesized xs -- función auxiliar para manejar paréntesis balanceados
@@ -75,11 +102,14 @@ getRegexAux acc (x:xs)
              Nothing -> getRegexAux (Just current) xs
              Just a -> getRegexAux (Just (Concat a current)) xs
 
--- Extrae contenido entre paréntesis balanceados
+
+-- ------------------------------------------------------------------------------
+-- Función para extraer el contenido entre paréntesis balanceados
+-- ------------------------------------------------------------------------------
 extractParenthesized :: String -> (String, String)
 extractParenthesized s = extract 0 [] s
   where
-    -- función auxiliar donde verificamos el balance de paréntesis
+    -- Función auxiliar donde verificamos el balance de paréntesis
     extract :: Int -> String -> String -> (String, String)
     extract 0 acc (')':rest) = (reverse acc, rest) --solo se ha cerrado el paréntesis inicial, hacemos reverse, pues acumulamos insertando al inicio.
     extract n acc (')':rest) = extract (n-1) (')':acc) rest -- identificamos un cierre -> buscamos un paréntesis menos.
@@ -87,11 +117,17 @@ extractParenthesized s = extract 0 [] s
     extract n acc (c:rest)   = extract n (c:acc) rest -- cualquier otro caracter, lo acumulamos
     extract _ acc []         = (reverse acc, "") -- si se acaba la cadena, devolvemos lo acumulado y cadena vacía
 
--- Parsea una expresión completa (puede contener operadores)
+
+-- ------------------------------------------------------------------------------
+-- Parse para una expresión completa (puede contener operadores)
+-- ------------------------------------------------------------------------------
 parseCompleteExpression :: String -> Maybe Regex
 parseCompleteExpression s = getRegexAux Nothing s --Nothing indica que no hay expresión acumulada al inicio
 
--- Aplica operadores que vienen después de una expresión
+
+-- ------------------------------------------------------------------------------
+-- Aplica operadores que se encuentran después de una expresión
+-- ------------------------------------------------------------------------------
 applyPostOperators :: Regex -> String -> (Regex, String)
 applyPostOperators expr [] = (expr, []) -- Ya no queda cadena por procesar
 applyPostOperators expr ('+':rest) = -- Operador de más alta precedencia

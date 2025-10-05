@@ -12,16 +12,28 @@ module AFNEp where
 import Data.Set (toList, fromList)
 import Regex 
 
--- | Abstracción de una transición epsilón,
--- utilizamos nothing para modelar una transición epsilón, en otro caso, un Maybe Char.
--- la tercia representa la función delta, el primero es
--- el estado donde se lee el cáracter o el epsilon y te lleva
--- a una lista de estados (no determinista).
+-- ------------------------------------------------------------------------------
+-- Definición del tipo de dato Trans_eps para representar 
+-- las transiciones que el automata debe seguir.
+-- Utilizamos una tercia para representar la función delta, donde:
+-- El primer lugar se ocupa por el estado actual.
+-- El segundo lugar se ocupa por: Nothing si se trata de una transicion epsilon,
+-- o el caracter que se especifique en caso de no ser transicion epsilon.
+-- El tercer lugar es una lista de estados alcanzables con el símbolo especificado.
+-- ------------------------------------------------------------------------------
 type Trans_eps = (String, Maybe Char, [String])
 
--- Representación de un automáta no determinista con transiciones epsilon,
--- con un conjunto de estados (Strings), un alfabeto (Chars),
--- una función de transición (Trans_eps), un estado inicial y un estado final.
+
+-- ------------------------------------------------------------------------------
+-- Definicion del tipo de dato AFNEp para representar a un autómata finito no
+-- determinista con transiciones épsilon.
+-- AFNEp = (Q, Σ, δ, q_s, q_f), donde
+-- > Q = estados. Representados en una lista de cadenas
+-- > Σ = alfabeto. Representado como una lista de caracteres
+-- > δ = transiciones. Conjunto de transiciones representadas en una lista de Trans_eps
+-- > q_s = inicial. Estado inicial del automata representado por un string
+-- > q_f = final. Estado final del automata representado por un string
+-- ------------------------------------------------------------------------------
 data AFNEp = AFNEp {
   estados :: [String],
   alfabeto :: [Char],
@@ -31,28 +43,31 @@ data AFNEp = AFNEp {
 } deriving (Show)
 
 
--- Abstracción de una expresión regular. 
---Puede ser un terminal (carácter), una concatenación, una disyunción o una estrella de Kleene, a partir de estas podemos construir otras.
---data Regex =  Symbol Char | Concat Regex Regex | Union Regex Regex | Star Regex
--- --Como las vamos a mostrar?
---instance Show Regex where
---  show (Symbol c)   = c:[] -- Un carácter solo: "a" (String).
---  show (Concat  l r) = "("++show l ++ show r ++ ")" -- Concatenación sin simbolo: ab.
---  show (Union   l r) = "("++show l ++ "+" ++ show r ++ ")" -- Disyunción con simbolo: a+b.
---  show (Star e) = show e ++ "*" --Estrella de Kleene con simbolo: a*.
---Buscamos construir un autómata a partir de una expresión regular(especificación en formato String).
+
+-- ------------------------------------------------------------------------------
+-- Función que dada una cadena, obtiene la representación de su expresión regular
+-- y, en caso de que exista, genera el autómata no determinista con 
+-- transiciones epsilon para la regex.
+-- Si no existe, notifica la ausencia de la expresion regular.
+-- ------------------------------------------------------------------------------
 getAFNEp :: String -> AFNEp
 getAFNEp s = expr_to_AFNEp (getRegex s)
 
 
--- | Traducción de expresiones regulares a automátas con transiciones epsilón
--- recibimos una expresión regular compuesta de caracteres y operadores
+-- ------------------------------------------------------------------------------
+-- | Traducción de expresiones regulares a automátas con transiciones epsilón.
+-- Recibimos una expresión regular compuesta de caracteres y operadores
 -- y devolvemos un automáta no determinista con transiciones epsilón.
+-- ------------------------------------------------------------------------------
 expr_to_AFNEp :: Regex -> AFNEp
 expr_to_AFNEp e = expr_to_AFNEp_aux e [] -- La lista va a representar los estados del automáta.
 
-expr_to_AFNEp_aux :: Regex -> [String] ->  AFNEp
 
+-- ------------------------------------------------------------------------------
+-- Función auxiliar para realizar el autómata finito no determinista con
+-- transiciones epsilon de una regex válida.
+-- ------------------------------------------------------------------------------
+expr_to_AFNEp_aux :: Regex -> [String] ->  AFNEp
 -- Caso base, cuando tenemos un terminal (carácter) y q es la lista de estados.
 -- Con esto se define el automáta que reconoce el carácter a.
 expr_to_AFNEp_aux (Symbol a) q = AFNEp {estados = q++[q0, q1], --definimos dos estados, el inicial y a donde llegamos con a.
@@ -74,6 +89,7 @@ expr_to_AFNEp_aux (Union a b) q =  AFNEp {estados = (estados m2) ++ [q0, q1], --
         m2 = expr_to_AFNEp_aux b (q++(estados m1)) -- Construimos el automáta para b, agregando los estados de m1 a la lista de estados
         q0 = "q"++(show  (length $ estados m2)) -- Sacrificamos el nombre q0 y q1 para que no se repitan, pero sigue siendo el estado inicial y final
         q1 = "q"++(show  ((length $ estados m2) + 1))
+
 -- Automata para la expresion ab
 expr_to_AFNEp_aux (Concat a b) q =  AFNEp {estados = estados m2,
                                     alfabeto =  rmDup $ (alfabeto m1) ++ (alfabeto m2),
@@ -82,6 +98,7 @@ expr_to_AFNEp_aux (Concat a b) q =  AFNEp {estados = estados m2,
                                     inicial = inicial m1, final = final m2}
   where m1 = expr_to_AFNEp_aux a q
         m2 = expr_to_AFNEp_aux b (q++(estados m1))
+
 -- Autómata para la expresión a*
 expr_to_AFNEp_aux (Star a) q =  AFNEp {estados = (estados m1) ++ [q0, q1],
                                     alfabeto =  (alfabeto m1),
@@ -95,9 +112,14 @@ expr_to_AFNEp_aux (Star a) q =  AFNEp {estados = (estados m1) ++ [q0, q1],
         qi = inicial m1
         qf = final m1
 
+
+-- ------------------------------------------------------------------------------
 -- Función para eliminar elementos duplicados de una lista
+-- ------------------------------------------------------------------------------
 rmDup :: (Ord a) => [a] -> [a]
 rmDup = toList . fromList 
+
+
 
 -- Ejemplo de uso:
 -- La expresión (0+1)*1

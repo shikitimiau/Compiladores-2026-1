@@ -25,6 +25,14 @@ data Regex = Symbol Char
 
 
 -- ------------------------------------------------------------------------------
+-- Definicion de lista con caracteres reservados para determinar las operaciones
+-- en las regex
+-- ------------------------------------------------------------------------------
+reserved :: [Char]
+reserved = ['+', '*', '(', ')']
+
+
+-- ------------------------------------------------------------------------------
 -- Función para obtener la representación de la expresión regular
 -- Usamos Nothing para representar la ausencia de expresión (el inicio), y
 -- Just para representar una expresión válida
@@ -45,11 +53,13 @@ getRegexAux :: Maybe Regex -> String -> Maybe Regex
 getRegexAux acc [] = acc
  -- Caso base: cadena de un solo caracter
 getRegexAux acc [x]
-    | x == ')' = acc -- caso donde termina una subexpresión
+    | x == ')' = error "Parentesis de cierre no esperado" -- Si sobró un parentesis, la regex no tiene parentesis balanceados
+    | x `elem` reserved = error $ "Símbolo reservado '" ++ [x] ++ "' necesita de una regex valida para utilizarse"
     | otherwise = case acc of
                   Nothing -> Just (Symbol x) -- Solo un símbolo
                   Just a -> Just (Concat a (Symbol x)) -- Concatenamos con lo que ya teníamos
 getRegexAux acc (x:xs)
+    | x == ')' = error "Parentesis de cierre no esperado"
     | x == '(' = -- Si encontramos un '(', buscamos el contenido hasta el paréntesis de cierre correspondiente
         let (insideStr, restAfterParen) = extractParenthesized xs -- función auxiliar para manejar paréntesis balanceados
         in if null insideStr
@@ -95,6 +105,9 @@ getRegexAux acc (x:xs)
             Just next -> case acc of
                          Nothing -> Just next
                          Just a -> Just (Concat a next)
+    -- Si las operaciones no se han usado correctamente, notificamos el error
+    | x `elem` reserved =
+      error $ "Símbolo reservado '" ++ [x] ++ "' en posición inválida"
 
     | otherwise =
         let current = Symbol x
@@ -105,17 +118,29 @@ getRegexAux acc (x:xs)
 
 -- ------------------------------------------------------------------------------
 -- Función para extraer el contenido entre paréntesis balanceados
+-- Asumimos que si la funcion se mando a llamar es porque encontramos un paréntesis
+--  que abre,  asi que iniciamos el contador de parentesis abiertos en 1
 -- ------------------------------------------------------------------------------
 extractParenthesized :: String -> (String, String)
-extractParenthesized s = extract 0 [] s
+extractParenthesized s = extract 1 [] s 
   where
     -- Función auxiliar donde verificamos el balance de paréntesis
     extract :: Int -> String -> String -> (String, String)
-    extract 0 acc (')':rest) = (reverse acc, rest) --solo se ha cerrado el paréntesis inicial, hacemos reverse, pues acumulamos insertando al inicio.
-    extract n acc (')':rest) = extract (n-1) (')':acc) rest -- identificamos un cierre -> buscamos un paréntesis menos.
-    extract n acc ('(':rest) = extract (n+1) ('(':acc) rest -- parentesis que abre -> buscamos un paréntesis más.
-    extract n acc (c:rest)   = extract n (c:acc) rest -- cualquier otro caracter, lo acumulamos
-    extract _ acc []         = (reverse acc, "") -- si se acaba la cadena, devolvemos lo acumulado y cadena vacía
+    -- parentesis que abre -> buscamos un paréntesis más.
+    extract n acc ('(':rest) = extract (n+1) ('(':acc) rest
+    extract n acc (')':rest)
+      -- Si el contador está en 1, los parentesis estan balanceados
+      -- el parentesis encontrado cierra el inicial.
+      -- hacemos reverse, porque acumulamos insertando al inicio.
+      | n == 1 = (reverse acc, rest)
+      -- En otro caso, es el cierre de otro parentesis que fue abierto
+      -- identificamos un cierre -> buscamos un paréntesis menos.
+      | otherwise = extract (n-1) (')':acc) rest
+    -- cualquier otro caracter, lo acumulamos.
+    extract n acc (c:rest) = extract n (c:acc) rest
+    -- Si termina de revisar la cadena y aún hay paréntesis sin cerrar,
+    -- significa que falta un paréntesis de cierre.
+    extract _ acc [] = error "Falta un paréntesis de cierre"
 
 
 -- ------------------------------------------------------------------------------

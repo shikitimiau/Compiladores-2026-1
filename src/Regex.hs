@@ -95,6 +95,7 @@ getRegexAux acc (x:xs)
               Nothing -> error "Expresión esperada después de '+'"
               Just right -> Just (Union left right)
 
+    -- Operador '*' aplicado solo si hay un operando acumulado   
     | not (null xs) && head xs == '*' =
         let remaining = tail xs
             starred = Star (Symbol x)
@@ -105,6 +106,7 @@ getRegexAux acc (x:xs)
             Just next -> case acc of
                          Nothing -> Just next
                          Just a -> Just (Concat a next)
+
     -- Si las operaciones no se han usado correctamente, notificamos el error
     | x `elem` reserved =
       error $ "Símbolo reservado '" ++ [x] ++ "' en posición inválida"
@@ -155,10 +157,20 @@ parseCompleteExpression s = getRegexAux Nothing s --Nothing indica que no hay ex
 -- ------------------------------------------------------------------------------
 applyPostOperators :: Regex -> String -> (Regex, String)
 applyPostOperators expr [] = (expr, []) -- Ya no queda cadena por procesar
-applyPostOperators expr ('+':rest) = -- Operador de más alta precedencia
+--Si encontramos un '*', aplicamos el operador estrella y seguimos procesando
+applyPostOperators expr ('*':rest) = applyPostOperators (Star expr) rest
+-- Para el caso de la union:
+-- Generamos la regex del lado derecho, si resulta Nothing
+-- significa que no es una regex valida.
+applyPostOperators expr ('+':rest) =
     case parseCompleteExpression rest of
-      Nothing -> (expr, rest) --
-      Just right -> (Union expr right, "")
-applyPostOperators expr ('*':rest) = --Si encontramos un '*', aplicamos el operador estrella y seguimos procesando
-    applyPostOperators (Star expr) rest
+      Just right -> (Union expr right, restAfter)
+        where (_, restAfter) = applyPostOperators right rest
+      Nothing -> error "Expresión esperada después de '+'"
 applyPostOperators expr rest = (expr, rest)
+
+
+-- Checar por qué aun no funcionan: 
+-- "**()+K*"
+-- "**+C+Q"
+-- "(**+Q)"

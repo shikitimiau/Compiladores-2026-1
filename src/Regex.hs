@@ -51,19 +51,29 @@ getRegex s = case getRegexAux Nothing s of
 getRegexAux :: Maybe Regex -> String -> Maybe Regex
 -- Caso base: cadena vacía
 getRegexAux acc [] = acc
- -- Caso base: cadena de un solo caracter
+ -- Caso base: Cadena de un solo caracter
 getRegexAux acc [x]
     | x == ')' = error "Parentesis de cierre no esperado" -- Si sobró un parentesis, la regex no tiene parentesis balanceados
     | x `elem` reserved = error $ "Símbolo reservado '" ++ [x] ++ "' necesita de una regex valida para utilizarse"
     | otherwise = case acc of
                   Nothing -> Just (Symbol x) -- Solo un símbolo
                   Just a -> Just (Concat a (Symbol x)) -- Concatenamos con lo que ya teníamos
+-- Caso especial: Si se desea utilizar un símbolo reservado como caracter dentro de la
+-- regex, deberá escribirse en la cadena de entrada: '\\+', '\\*', '\\(' '\\)' según sea el caso.
+-- Nota: En haskell se utiliza '\\'  porque '\' está reservada para saltos de linea, tabulacion, etc.
+getRegexAux acc ('\\':x:xs)
+    | x `elem` reserved = 
+        let current = Symbol x
+        in case acc of
+             Nothing -> getRegexAux (Just current) xs
+             Just a  -> getRegexAux (Just (Concat a current)) xs
+-- Caso recursivo: Resuelve las llamadas para union, concatenacion y estrella de kleene
 getRegexAux acc (x:xs)
-    | x == ')' = error "Parentesis de cierre no esperado"
+    | x == ')' = error "Parentesis de cierre no esperado" -- Encontrar un parentesis de cierre indica que no estan balanceados
     | x == '(' = -- Si encontramos un '(', buscamos el contenido hasta el paréntesis de cierre correspondiente
-        let (insideStr, restAfterParen) = extractParenthesized xs -- función auxiliar para manejar paréntesis balanceados
-        in if null insideStr
-           then getRegexAux acc restAfterParen
+        let (insideStr, restAfterParen) = extractParenthesized xs -- función auxiliar para encontrar el contenido entre paréntesis balanceados
+        in if null insideStr -- No hay nada dentro de los parentesis
+           then error "Expresión vacía no permitida"
            else 
              -- Parseamos el interior como una expresión completa
              case parseCompleteExpression insideStr of
@@ -73,48 +83,81 @@ getRegexAux acc (x:xs)
                        applyPostOperators inside restAfterParen
                  in 
                    case acc of
+                    -- Si no hay expresión acumulada aún, hacemos la llamada recursiva
+                    -- con el contenido dentro del paréntesis junto con sus operadores postfijos.
                      Nothing -> getRegexAux (Just exprWithPostOps) remainingAfterPostOps
                      Just a -> 
-                       -- En lugar de concatenar automáticamente, verificamos si hay operador infijo
+                       -- Verificamos si hay operador infijo
                        case remainingAfterPostOps of
-                         -- Si hay un '+' después, es una unión
+                         -- Si hay un '+' después, es una unión donde el lado derecho es una
+                         -- concatenacion del simbolo encontrado y el contenido entre parentesis
                          ('+':restAfterPlus) ->
                            case getRegexAux Nothing restAfterPlus of
+                            -- Si no hay nada en el lado izquierdo, marcamos el error
                              Nothing -> error "Expresión esperada después de '+'"
+                             -- En otro caso, construimos la union contemplando la concatenación 
                              Just right -> Just (Union (Concat a exprWithPostOps) right)
-                         -- Si no hay operador, entonces concatenamos
+                         -- Si no hay operador infijo, entonces concatenamos directamente el síbolo
+                         -- con el contenido de los parentesis y seguimos la recursion con la parte
+                         -- de la cadena que no se ha procesado
                          _ -> getRegexAux (Just (Concat a exprWithPostOps)) remainingAfterPostOps
-               Nothing -> getRegexAux acc restAfterParen
 
     -- Operador '+' como infijo
     | x == '+' =
         case acc of
+          -- Si el acumulador es vacío, la regex está mal construida, pues 
+          -- la union necesita lado derecho e izquierdo y no estamos encontrando
+          -- el lado derecho de esta unión.
           Nothing -> error "Expresión esperada antes de '+'"
+          -- Si encontramos el lado derecho, verificamos que haya lado izquierdo en la cadena.
           Just left -> 
             case getRegexAux Nothing xs of
+              -- Si no hay lado izquierdo notificamos el error
               Nothing -> error "Expresión esperada después de '+'"
+              -- Si todo salió bien, devolvemos la union
               Just right -> Just (Union left right)
-
-    -- Operador '*' aplicado solo si hay un operando acumulado   
-    | not (null xs) && head xs == '*' =
-        let remaining = tail xs
-            starred = Star (Symbol x)
-        in case getRegexAux (Just starred) remaining of
-            Nothing -> case acc of
-                       Nothing -> Just starred
-                       Just a -> Just (Concat a starred)
-            Just next -> case acc of
-                         Nothing -> Just next
-                         Just a -> Just (Concat a next)
 
     -- Si las operaciones no se han usado correctamente, notificamos el error
     | x `elem` reserved =
       error $ "Símbolo reservado '" ++ [x] ++ "' en posición inválida"
 
+    -- Si hasta ahora las operaciones se han aplicado correctamente, entonces
+    -- podemos asumir que la regex que antecede el operador '*' es válida 
+    -- y se encuentra en el acumulador 
+    | not (null xs) && head xs == '*' =
+        -- Ignoramos el simbolo * y construimos expresion con estrella de kleene 
+        let remaining = tail xs 
+            starred = Star (Symbol x)
+          -- hacemos la llamada recursiva con la regex construida contemplando la estrella
+          -- de kleene que fue aplicada y el resto de la cadena sin tomar en cuenta *
+        in case getRegexAux (Just starred) remaining of
+          -- No encontramos una expresión después de E*
+          Nothing -> case acc of
+            -- No hay nada antes de E*
+            -- devolvemos la expresion recien construida
+            Nothing -> Just starred
+            -- Hay algo antes de E*
+            -- Concatenamos el resultado del acumulador previo  (que ya verificamos
+            -- que es una regex valida) con la expresion recién construida
+            Just a -> Just (Concat a starred)
+          -- Encontramos una expresión después de E*
+          Just next -> case acc of
+            -- No hay nada antes de E*
+            -- devolvemos la expresion E*E que se encuentra en el acumulador actualmente
+            Nothing -> Just next
+            -- Hay algo antes de E*
+            -- Concatenamos el resultado del acumulador previo  (que ya verificamos
+            -- que es una regex valida) con la expresion encontrada después de E*
+            Just a -> Just (Concat a next)
+
+    -- Si el caso no cae en los anteriores, entonces es un símbolo del alfabeto
     | otherwise =
         let current = Symbol x
         in case acc of
+            -- Si no hay nada acumulado, es el primer simbolo que encontramos
              Nothing -> getRegexAux (Just current) xs
+             -- Si hay algo acumulado, entonces este simbolo esta concatenado a 
+             -- la expresion que se ha procesado hasta el momento
              Just a -> getRegexAux (Just (Concat a current)) xs
 
 
@@ -160,17 +203,16 @@ applyPostOperators expr [] = (expr, []) -- Ya no queda cadena por procesar
 --Si encontramos un '*', aplicamos el operador estrella y seguimos procesando
 applyPostOperators expr ('*':rest) = applyPostOperators (Star expr) rest
 -- Para el caso de la union:
--- Generamos la regex del lado derecho, si resulta Nothing
--- significa que no es una regex valida.
+-- Cuando llegamos a este punto, ya se ha generado la regex del lado izquierdo
+-- Por lo cual, sólo generamos la regex del lado derecho.
 applyPostOperators expr ('+':rest) =
     case parseCompleteExpression rest of
-      Just right -> (Union expr right, restAfter)
-        where (_, restAfter) = applyPostOperators right rest
+      Just right ->
+         -- hacemos la llamada a parse del lado derecho con la lista vacía
+         -- para no procesar dos veces ese lado de la expresión
+        let (exprRight, restAfter) = applyPostOperators right []
+        in (Union expr exprRight, restAfter)
+       -- Si resulta Nothing no es una regex valida porque no tiene lado derecho.
       Nothing -> error "Expresión esperada después de '+'"
+-- Si en la cabeza de la lista no hay un operador devolvemos la misma expresion
 applyPostOperators expr rest = (expr, rest)
-
-
--- Checar por qué aun no funcionan: 
--- "**()+K*"
--- "**+C+Q"
--- "(**+Q)"

@@ -24,6 +24,16 @@ module AFDmin where
 import AFD
 import Data.List (nub, sort, (\\), partition)
 
+
+-- ------------------------------------------------------------------------------
+-- Función que dada una cadena, obtiene la representación de su expresión regular
+-- y, en caso de que exista, genera el autómata determinista minimizado para la regex.
+-- Si no existe, notifica la ausencia de la expresion regular.
+-- ------------------------------------------------------------------------------
+getAFDmin :: String -> AFD
+getAFDmin s = minimizaAFD $ getAFD s
+
+
 ---------------------------------------------------------------------------
 -- Función principal: obtiene el AFD mínimo de un AFD dado
 --
@@ -32,8 +42,8 @@ import Data.List (nub, sort, (\\), partition)
 --   2. Agrupar estados equivalentes.
 --   3. Reconstruir el nuevo AFD con grupos como nuevos estados.
 ---------------------------------------------------------------------------
-getAFDmin :: AFD -> AFD
-getAFDmin afd =
+minimizaAFD :: AFD -> AFD
+minimizaAFD afd =
   let 
       -- Paso 1: Eliminación de estados inalcanzables
       afdReachable = removeUnreachable afd
@@ -61,6 +71,7 @@ getAFDmin afd =
         , finalD = finMin
         }
 
+
 ---------------------------------------------------------------------------
 -- Paso 1: Eliminación de estados inalcanzables
 --
@@ -81,6 +92,7 @@ removeUnreachable afd =
         , finalD = filter (`elem` reachables) (finalD afd)
         }
 
+
 ---------------------------------------------------------------------------
 -- Calcula recursivamente los estados alcanzables desde un conjunto inicial
 --
@@ -100,6 +112,7 @@ reachableStates afd visited =
       if new == visited 
         then visited 
         else reachableStates afd new   -- Recursión hasta alcanzar un conjunto estable
+
 
 ---------------------------------------------------------------------------
 -- Paso 2 y 3: Construcción y refinamiento de particiones
@@ -128,6 +141,7 @@ groupEquivalents afd =
   in 
       namedGroups
 
+
 ---------------------------------------------------------------------------
 -- Refinar la partición hasta alcanzar un punto fijo.
 --
@@ -154,6 +168,7 @@ refinePartition afd part =
         -- Esto asegura que el proceso se repita hasta alcanzar un punto fijo.
         else refinePartition afd newPart
 
+
 ---------------------------------------------------------------------------
 -- Divide un grupo según las transiciones de sus estados.
 --
@@ -175,6 +190,7 @@ splitGroup afd part group =
       -- El resultado es una lista de subgrupos derivados del grupo original.
       grouped
 
+
 ---------------------------------------------------------------------------
 -- Busca el grupo que contiene un estado dado.
 --
@@ -187,6 +203,7 @@ findGroup q part =
     (x:_) -> x        -- Se encontró el grupo que contiene al estado q
     []    -> ["∅"]    -- Si no pertenece a ningún grupo, retorna el grupo trampa
 
+
 ---------------------------------------------------------------------------
 -- Evalúa la función de transición δ(q, a).
 --
@@ -198,6 +215,7 @@ delta afd q a =
   case [q' | (q0, x, q') <- transicionesD afd, q0 == q, x == a] of
     (r:_) -> r   -- caso normal: existe transición válida
     []    -> ""  -- sin transición definida
+
 
 ---------------------------------------------------------------------------
 -- Paso 4: Construcción del AFD mínimo
@@ -216,6 +234,7 @@ buildTransitions afd grupos =
   -- y calcula su transición bajo cada símbolo.
   -- Luego, con 'findGroupName', traduce el destino al nombre del grupo correspondiente.
 
+
 ---------------------------------------------------------------------------
 -- Dado un estado original, devuelve el nombre del grupo que lo contiene.
 ---------------------------------------------------------------------------
@@ -225,6 +244,7 @@ findGroupName q grupos =
     (x:_) -> x    -- Se encontró el nombre del grupo correspondiente
     []    -> "∅"  -- Si no está en ninguno, se asigna al grupo trampa
 
+
 ---------------------------------------------------------------------------
 -- Devuelve los estados asociados a un grupo dado.
 ---------------------------------------------------------------------------
@@ -233,6 +253,7 @@ fromMaybeGroup name grupos =
   case [qs | (n, qs) <- grupos, n == name] of
     (x:_) -> x
     []    -> []
+
 
 ---------------------------------------------------------------------------
 -- Agrupa elementos según una relación de equivalencia proporcionada.

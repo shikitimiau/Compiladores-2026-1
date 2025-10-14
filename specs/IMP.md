@@ -1,0 +1,7 @@
+"A(A*)D*" "identificador"
+"(0)+(ZD*)+(-ZD*)" "entero"
+"(\\+)+(-)+(\\*)+(/)" "operador"
+"(<)+(>)+(=)" "operador logico"
+"(:=)" "asignacion"
+"(if)+(then)+(else)+(while)+(do)" "reservada"
+"(;)+(\\+)" "nomeacuerdo"

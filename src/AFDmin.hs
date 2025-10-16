@@ -43,16 +43,23 @@ getAFDmin s = minimizaAFD $ getAFD s
 --   3. Reconstruir el nuevo AFD con grupos como nuevos estados.
 ---------------------------------------------------------------------------
 minimizaAFD :: AFD -> AFD
-minimizaAFD afd =
+minimizaAFD = minimizaAFDDesde 0
+
+-- | Función auxiliar que permite elegir desde qué número inician los nombres de los grupos.
+minimizaAFDDesde :: Int -> AFD -> AFD
+minimizaAFDDesde start afd =
   let 
       -- Paso 1: Eliminación de estados inalcanzables
       afdReachable = removeUnreachable afd
 
       -- Paso 2: Agrupar estados equivalentes mediante refinamiento
-      gruposEquiv  = groupEquivalents afdReachable
+      gruposEquiv  = groupEquivalentsDesde start afdReachable
 
       -- Paso 3: Construcción de las transiciones del nuevo AFD
-      transMin     = buildTransitions afdReachable gruposEquiv
+      transMinRaw  = buildTransitions afdReachable gruposEquiv
+
+      -- Eliminamos las transiciones hacia "Trash"
+      transMin     = filterTrashTransitions transMinRaw
 
       -- Nuevo estado inicial: el grupo que contiene al estado inicial original
       iniMin       = findGroupName (inicialD afdReachable) gruposEquiv
@@ -119,12 +126,12 @@ reachableStates afd visited =
 --
 --   Se definen grupos (particiones) de estados equivalentes.
 --   El refinamiento separa grupos hasta alcanzar una partición estable.
+--   Agrupa los estados equivalentes y asigna nombres nuevos a partir start, 
+--   por ejemplo: start = 0, nombres "q0", "q1", ...
 ---------------------------------------------------------------------------
 type Grupo = (String, [String])  -- (nombre del grupo, estados que contiene)
-
--- | Agrupa los estados equivalentes y asigna nombres nuevos ("q0", "q1", ...)
-groupEquivalents :: AFD -> [Grupo]
-groupEquivalents afd =
+groupEquivalentsDesde :: Int -> AFD -> [Grupo]
+groupEquivalentsDesde start afd =
   let 
       allStates   = estadosD afd
       finals      = finalD afd
@@ -136,8 +143,8 @@ groupEquivalents afd =
       -- Refinamiento de la partición inicial hasta que no cambie más
       refined     = refinePartition afd initPart
 
-      -- Se renombran los grupos con etiquetas legibles y únicas
-      namedGroups = zipWith (\i g -> ("q" ++ show i, g)) [0..] refined
+      -- Se renombran los grupos comenzando desde 'start'
+      namedGroups = zipWith (\i g -> ("q" ++ show (start + i), g)) [0..] refined
   in 
       namedGroups
 
@@ -195,13 +202,13 @@ splitGroup afd part group =
 -- Busca el grupo que contiene un estado dado.
 --
 --   Si el estado no pertenece a ningún grupo (por ejemplo, no tiene transiciones),
---   se devuelve un grupo ficticio ["∅"] que representa un estado trampa.
+--   se devuelve un grupo ficticio ["Trash"] que representa un estado trampa.
 ---------------------------------------------------------------------------
 findGroup :: String -> [[String]] -> [String]
 findGroup q part =
   case [g | g <- part, q `elem` g] of
     (x:_) -> x        -- Se encontró el grupo que contiene al estado q
-    []    -> ["∅"]    -- Si no pertenece a ningún grupo, retorna el grupo trampa
+    []    -> ["Trash"]    -- Si no pertenece a ningún grupo, retorna el grupo trampa
 
 
 ---------------------------------------------------------------------------
@@ -242,7 +249,7 @@ findGroupName :: String -> [Grupo] -> String
 findGroupName q grupos =
   case [n | (n, qs) <- grupos, q `elem` qs] of
     (x:_) -> x    -- Se encontró el nombre del grupo correspondiente
-    []    -> "∅"  -- Si no está en ninguno, se asigna al grupo trampa
+    []    -> "Trash"  -- Si no está en ninguno, se asigna al grupo trampa
 
 
 ---------------------------------------------------------------------------
@@ -272,6 +279,13 @@ groupByEq eq (x:xs) =
       -- Se forma un grupo con 'x' y todos sus equivalentes,
       -- y se continúa recursivamente con los restantes
       (x:iguales) : groupByEq eq distintos
+
+---------------------------------------------------------------------------
+-- Elimina todas las transiciones que van al estado "Trash".
+---------------------------------------------------------------------------
+filterTrashTransitions :: [Trans_afd] -> [Trans_afd]
+filterTrashTransitions =
+  filter (\(_, _, dest) -> dest /= "Trash")
 
 ---------------------------------------------------------------------------
 -- Ejemplo de uso:

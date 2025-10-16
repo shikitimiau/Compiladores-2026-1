@@ -111,8 +111,35 @@ pruebasgetRegex = forAll genRegexString $ \(s, shouldBeValid) ->
 --                                Pruebas AFDmin
 -- =============================================================================
 -- ------------------------------------------------------------------------------
--- Definicion de un AFD para minimizar
-afdEjemplo = AFD
+afdEjemplo1 = AFD
+  { estadosD = ["q0", "q1", "q2", "q3"]
+  , alfabetoD = ['a', 'b']
+  , transicionesD =
+      [ ("q0",'a',"q1"), ("q0",'b',"q2")
+      , ("q1",'a',"q3"), ("q1",'b',"q3")
+      , ("q2",'a',"q3"), ("q2",'b',"q3")
+      , ("q3",'a',"q3"), ("q3",'b',"q3")
+      ]
+  , inicialD = "q0"
+  , finalD = ["q1", "q2"]
+  }
+
+afdEjemplo2 = AFD
+  { estadosD = ["q0", "q1", "q2", "q3", "q4", "q5", "q6"]
+  , alfabetoD = ['a', 'b']
+  , transicionesD =
+      [ ("q0",'a',"q1"), ("q0",'b',"q2")
+      , ("q1",'a',"q3"), ("q1",'b',"q4")
+      , ("q2",'a',"q4"), ("q2",'b',"q3")
+      , ("q3",'a',"q5"), ("q3",'b',"q5")
+      , ("q4",'a',"q5"), ("q4",'b',"q5")
+      , ("q5",'a',"q5"), ("q5",'b',"q5")
+      ]
+  , inicialD = "q0"
+  , finalD = ["q1", "q2", "q5"]
+  }
+
+afdEjemplo3 = AFD
   { estadosD = ["q0", "q1", "q2", "q3", "q4", "q5", "q6", "q7"]
   , alfabetoD = ['a', 'b']
   , transicionesD =
@@ -129,17 +156,29 @@ afdEjemplo = AFD
   }
 
 -- Prueba: eliminar estados inalcanzables
-testUnreachables :: IO ()
-testUnreachables = print $ removeUnreachable afdEjemplo
+testUnreachables :: AFD -> IO ()
+testUnreachables afd = print $ removeUnreachable afd
+
+testUnreachables2 = testUnreachables afdEjemplo2
+testUnreachables4 = testUnreachables (getAFD "(0)+(ZD*)+(-ZD*)")
 
 -- Prueba: refinamiento de particiones
-testGroups :: IO ()
-testGroups = print $ groupEquivalents afdEjemplo
+testGroups :: Int -> AFD -> IO ()
+testGroups n afd = print $ groupEquivalentsDesde n afd
+
+testGroups1 = testGroups 0 afdEjemplo1
+testGroups2 = testGroups 0 afdEjemplo2
+testGroups3 = testGroups 0 afdEjemplo3
+testGroups4 = testGroups 0 (getAFD "(0)+(ZD*)+(-ZD*)")
 
 -- Prueba: construcción completa del AFD mínimo
-testAFDmin :: IO ()
-testAFDmin = print $ minimizaAFD afdEjemplo
+testAFDmin :: Int -> AFD -> IO ()
+testAFDmin n afd = print $ minimizaAFDDesde n afd
 
+testAFDmin1 = testAFDmin 0 afdEjemplo1
+testAFDmin2 = testAFDmin 0 afdEjemplo2
+testAFDmin3 = testAFDmin 0 afdEjemplo3
+testAFDmin4 = testAFDmin 0 (getAFD "(0)+(ZD*)+(-ZD*)")
 
 -- ------------------------------------------------------------------------------
 -- Ejecucion de Pruebas
@@ -152,8 +191,8 @@ main = do
 
   -- AFDmin --
   putStrLn "\n---- Eliminación de inalcanzables ----"
-  testUnreachables
+  testUnreachables4
   putStrLn "\n---- Grupos equivalentes ----"
-  testGroups
+  testGroups4
   putStrLn "\n---- AFD mínimo ----"
-  testAFDmin
+  testAFDmin4

@@ -39,11 +39,13 @@ reserved = ['+', '*', '(', ')','[', ']']
 -- Función para obtener la representación de la expresión regular
 -- Usamos Nothing para representar la ausencia de expresión (el inicio), y
 -- Just para representar una expresión válida
+-- Se retirará cualquier caracter que se considere espacio en blanco de la cadena
 -- ------------------------------------------------------------------------------
 getRegex :: String -> Regex
-getRegex s = case getRegexAux Nothing s of
+getRegex s = case getRegexAux Nothing (filter (not . isSpace) s) of
               Just expr -> expr
               Nothing -> error "Expresión vacía no permitida"
+
 
 -- ------------------------------------------------------------------------------
 -- Función auxiliar que procesa un string y determina si es posible crear una
@@ -69,7 +71,7 @@ getRegexAux acc ('[':xs) =
          -- Con base a lo que encontremos dentro de los corchetes,
          -- Si la lista define al conjunto es vacío, notificamos que no se puede agregar este conjunto explícitamente a una expresion regular
          -- Si no lo es, reconstruimos la expresion que define una lista/rango en haskell que encontramos en el contenido entre corchetes.
-        lista =  if inside == [] then error "Conjunto vacío no soportado" else '[' : inside ++ "]"
+        lista =  if null inside then error "Conjunto vacío no soportado" else '[' : inside ++ "]"
         -- Con ayuda de la función auxiliar expandList, nombramos todos los elementos que pertenecen al conjunto definido
         expanded = expandList lista
         -- Aplicamos la union entre los elementos de la lista para que todos sean reconocidos en la regex como posibles valores
@@ -192,6 +194,37 @@ getRegexAux acc (x:xs)
              Just a -> getRegexAux (Just (Concat a current)) xs
 
 
+-- ------------------------------------------------------------------------------
+-- Parse para una expresión completa (puede contener operadores)
+-- ------------------------------------------------------------------------------
+parseCompleteExpression :: String -> Maybe Regex
+-- Utilizamos Nothing para indicar que no hay expresiones acumuladas al inicio
+parseCompleteExpression s = getRegexAux Nothing s
+
+
+-- ------------------------------------------------------------------------------
+-- Aplica operadores que se encuentran después de una expresión
+-- ------------------------------------------------------------------------------
+applyPostOperators :: Regex -> String -> (Regex, String)
+-- Caso Base: Lista vacía -> Ya no quedan más caracteres por procesar
+applyPostOperators expr [] = (expr, [])
+--Si encontramos un '*', aplicamos el operador estrella y seguimos procesando
+applyPostOperators expr ('*':rest) = applyPostOperators (Star expr) rest
+-- Para el caso de la union:
+-- Cuando llegamos a este punto, ya se ha generado la regex del lado izquierdo
+-- Por lo cual, sólo generamos la regex del lado derecho.
+applyPostOperators expr ('+':rest) =
+    case parseCompleteExpression rest of
+      Just right ->
+         -- hacemos la llamada a parse del lado derecho con la lista vacía
+         -- para no procesar dos veces ese lado de la expresión
+        let (exprRight, restAfter) = applyPostOperators right []
+        in (Union expr exprRight, restAfter)
+       -- Si resulta Nothing no es una regex valida porque no tiene lado derecho.
+      Nothing -> error "Expresión esperada después de '+'"
+-- Si en la cabeza de la lista no hay un operador devolvemos la misma expresion
+applyPostOperators expr rest = (expr, rest)
+
 
 -- ------------------------------------------------------------------------------
 -- Función para extraer el contenido entre corchetes balanceados.
@@ -203,62 +236,6 @@ getRegexAux acc (x:xs)
 extractBracketed :: String -> (String, String)
 extractBracketed s = extract 1 '[' ']' [] s
 
--- ------------------------------------------------------------------------------
--- Función para encontrar todos los elementos de una lista/rango que actualmente
--- no tiene el formato de lista si no de String.
--- Se les asociará el tipo de dato Char
--- ------------------------------------------------------------------------------
-expandList :: String -> [Char]
-expandList s =
-  let trimmed = dropWhile isSpace s
-  in case unwrapBrackets trimmed of
-       Just inner ->
-         case findRange inner of
-           Just (a,b) -> [a..b]
-           Nothing ->
-             -- Si no es rango, intentamos leer la lista/str tal cual
-             case readMaybe trimmed :: Maybe [Char] of
-               Just cs -> cs
-               Nothing -> error $ "Formato de lista no reconocido: " ++ s
-       Nothing ->
-         -- No está entre corchetes entonces pude ser una cadena literal y usamos try read
-         case readMaybe s :: Maybe [Char] of
-           Just cs -> cs
-           Nothing -> error $ "Formato de lista no reconocido: " ++ s
-
--- ------------------------------------------------------------------------------
--- Verificacion para eliminar corchetes exteriores, si aún existen en la cadena y
--- conservar interior de la lo que encuentre entre ellos.
--- ------------------------------------------------------------------------------
-unwrapBrackets :: String -> Maybe String
-unwrapBrackets xs =
-  let t = dropWhile isSpace xs
-  in if not (null t) && head t == '[' && last t == ']'
-       then Just (init (tail t))
-       else Nothing
-
--- ------------------------------------------------------------------------------
--- Busca un rango de la forma 'a'..'z' dentro del string.
--- Devuelve Just (startChar, endChar) o Nothing
--- ------------------------------------------------------------------------------
-findRange :: String -> Maybe (Char, Char)
-findRange s = search 0 (filterIndices s)
-  where
-    len = length s
-    -- filtramos para tener acceso seguro a índices
-    filterIndices :: String -> String
-    filterIndices = id  -- usamos el string tal cual (no removemos espacios aquí)
-
-    -- buscamos en cada posición la secuencia: '\'' c '\'' '.' '.' '\'' d '\''
-    search i str
-      | i + 7 >= len = Nothing
-      | otherwise =
-          if at i '\'' && at (i+2) '\'' && at (i+3) '.' && at (i+4) '.' &&
-             at (i+5) '\'' && at (i+7) '\''
-            then Just (str !! (i+1), str !! (i+6))
-            else search (i+1) str
-      where
-        at j ch = (str !! j) == ch
 
 -- ------------------------------------------------------------------------------
 -- Función para extraer el contenido entre paréntesis balanceados.
@@ -269,6 +246,7 @@ findRange s = search 0 (filterIndices s)
 -- ------------------------------------------------------------------------------
 extractParenthesized :: String -> (String, String)
 extractParenthesized s = extract 1 '(' ')' [] s
+
 
 -- ------------------------------------------------------------------------------
 -- Función auxiliar para verificar el balance de caracteres en una expresión y
@@ -305,30 +283,111 @@ extract _ a c acc [] =
   if a == '(' then error "Paréntesis de cierre incompletos"
   else error "Corchetes de cierre incompletos"
 
--- ------------------------------------------------------------------------------
--- Parse para una expresión completa (puede contener operadores)
--- ------------------------------------------------------------------------------
-parseCompleteExpression :: String -> Maybe Regex
-parseCompleteExpression s = getRegexAux Nothing s --Nothing indica que no hay expresión acumulada al inicio
 
 -- ------------------------------------------------------------------------------
--- Aplica operadores que se encuentran después de una expresión
+-- Función para encontrar todos los elementos de una lista/rango que actualmente
+-- no tiene el formato de lista si no de String.
+-- Se les asociará el tipo de dato Char
 -- ------------------------------------------------------------------------------
-applyPostOperators :: Regex -> String -> (Regex, String)
-applyPostOperators expr [] = (expr, []) -- Ya no queda cadena por procesar
---Si encontramos un '*', aplicamos el operador estrella y seguimos procesando
-applyPostOperators expr ('*':rest) = applyPostOperators (Star expr) rest
--- Para el caso de la union:
--- Cuando llegamos a este punto, ya se ha generado la regex del lado izquierdo
--- Por lo cual, sólo generamos la regex del lado derecho.
-applyPostOperators expr ('+':rest) =
-    case parseCompleteExpression rest of
-      Just right ->
-         -- hacemos la llamada a parse del lado derecho con la lista vacía
-         -- para no procesar dos veces ese lado de la expresión
-        let (exprRight, restAfter) = applyPostOperators right []
-        in (Union expr exprRight, restAfter)
-       -- Si resulta Nothing no es una regex valida porque no tiene lado derecho.
-      Nothing -> error "Expresión esperada después de '+'"
--- Si en la cabeza de la lista no hay un operador devolvemos la misma expresion
-applyPostOperators expr rest = (expr, rest)
+expandList :: String -> [Char]
+expandList s =
+  -- Quitamos los espacios en blanco que se encuentren al inicio de la cadena y
+  -- obtenemos la lista de caracteres siguientes
+  let trimmed = dropWhile isSpace s
+  -- Usando la función auxiliar para obtener el contenido entre corchetes
+  -- Verificamos si la salida fue una cadena o se devolvió Nothing
+  in case unwrapBrackets trimmed of
+    Just inner ->
+      -- Si la salida es una cadena, usamos la funció auxiliar findRange para
+      -- verificar si se está definiendo una lista con la sintaxis de rango 
+      -- que maneja haskell: ['a'..'z]
+      case findRange inner of
+        -- Si en efecto, la cadena denotaba un rango, devolvemos el rango que define
+        Just (a,b) -> [a..b]
+        Nothing ->
+          -- Si no es rango, intentamos leer el contenido de la cadena para saber si
+          -- está definiendose en un formato de lista distinto pero válido en Haskell
+          case readMaybe trimmed :: Maybe [Char] of
+            -- Si logró leerse como una lista, la devolvemos asociandole el tipo Char
+            Just cs -> cs
+            -- Si no logró leerse como lista, notificamos qel error
+            Nothing -> error $ "Formato de lista no reconocido: " ++ s ++ ". Formato esperado: [Char]"
+    Nothing ->
+      -- No está entre corchetes pero pude ser que ya se hayan extraído los corchetes
+      -- así que intentamos leer el contenido de la cadena para saber si define
+      -- un formato de lista válido en Haskell
+      case readMaybe s :: Maybe [Char] of
+        -- Si logró leerse como una lista, la devolvemos asociandole el tipo Char
+        Just cs -> cs
+        -- Si no logró leerse como lista, notificamos qel error
+        Nothing -> error $ "Formato de lista no reconocido: " ++ s ++ ". Formato esperado: [Char]"
+
+
+-- ------------------------------------------------------------------------------
+-- Verificacion para eliminar de una cadena corchetes exteriores que puedan
+-- tener el formato correcto para definir una lista o rango en la sintaxis de
+-- haskell.
+-- No se comprueba que los corchetes de toda la expresión estén balanceados,
+-- asume que lo están y devuelve el interior de la cadena si ésta empieza con
+-- '[', termina con ']' y tiene longitud de, al menos, 3.
+-- En otro caso devuelve Nothing.
+-- ------------------------------------------------------------------------------
+unwrapBrackets :: String -> Maybe String
+unwrapBrackets xs =
+  -- Quitamos los espacios en blanco que se encuentren al inicio de la cadena y
+  -- obtenemos la lista de caracteres siguientes
+  let caracteres = dropWhile isSpace xs
+  -- Si la cadena resultante tiene al menos 3 caracteres donde el primero es '['
+  -- Y el final ']'
+  in if not (null caracteres) && head caracteres == '[' && last caracteres == ']'
+    -- Devolvemos el contenido entre corchetes
+    then Just (init (tail caracteres))
+    -- En otro caso, no se esta definiendo una lista cuya longitud sea al menos 1
+    -- Así que regresamos Nothing porque podría ser que en el proceso anterior ya
+    -- se hayan quitado los corchetes de lo que se está definiendo como lista
+    else Nothing
+
+
+-- ------------------------------------------------------------------------------
+-- Determina si el contenido de una cadena está definiendo un rango en sintaxis
+-- de Haskell, es decir, en formato: 'a'..'z'
+-- Ambos extremos deben están delimitados por comillas simples y separados por
+-- dos puntos consecutivos.
+-- Si la cadena cumple este formato, devuelve una tupla con el caracter inicial
+-- y el caracter final que se espera que tenga el rango, es decir: (a, z)
+-- En otro caso, no ha detectado devuelve Nothing
+-- Se asume que la cadena a procesar ya no tiene espacios en blanco.
+-- ------------------------------------------------------------------------------
+findRange :: String -> Maybe (Char, Char)
+findRange s = search 0 s
+
+-- ------------------------------------------------------------------------------
+-- Función para  buscar dentro de una cadena la secuencia de caracteres que definen
+-- un rango en formato: '\'' a '\'' '.' '.' '\'' z '\''
+-- Notemos que la cadena con formato válido tiene longitud 8 e índices de caracteres
+-- numerados de 0 a 7
+-- ------------------------------------------------------------------------------
+search :: Int -> String -> Maybe (Char, Char)
+search i str
+  -- Si no hay suficientes caracteres en la cadena para buscar
+  -- los 8 caracteres obligatorios, devolvemos nothing
+  | i + 7 >= length str = Nothing
+  -- En otro caso, nos aseguramos de que cada caracter que esperamos
+  -- se encuentre en la cadena, aparezca en el lugar adecuado
+  -- Utiliza la función 'at' con parametros: indice, caracterEsperado
+  | otherwise =
+    if at i '\'' && at (i+2) '\'' && at (i+3) '.' && at (i+4) '.' &&
+      at (i+5) '\'' && at (i+7) '\''
+      -- Si todos los caracteres coinciden con el formato de rango
+      -- devolvemos una tupla con el caracter colocado en el índice 1
+      -- y el caracter colocado en el índice 6, es justo donde deben
+      -- estar los caracteres que definen el inicio y final del rango 
+      then Just (str !! (i+1), str !! (i+6))
+      -- En otro caso, buscamos si se define un rango más adelante en 
+      -- la cadena moviendonos un índice más a la derecha sobre la misma
+      -- cadena para saber si podemos encontrarlo.
+      else search (i+1) str
+      where
+        -- Devuelve True si el carácter en la posición j de la cadena es igual
+        -- que el caracter que recibe como parámetro, c
+        at j c = (str !! j) == c

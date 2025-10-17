@@ -9,6 +9,9 @@
 -- | > Rosas Franco Diego Angel
 module Regex where
 
+import Text.Read (readMaybe)
+import Data.Char (isSpace)
+
 -- ------------------------------------------------------------------------------
 -- Definicion del tipo de dato Regex para representar una expresión regular
 -- Constructores: 
@@ -58,6 +61,34 @@ getRegexAux acc [x]
     | otherwise = case acc of
                   Nothing -> Just (Symbol x) -- Solo un símbolo
                   Just a -> Just (Concat a (Symbol x)) -- Concatenamos con lo que ya teníamos
+-- Caso para la detección de un conjunto definido en la cadena de entrada
+getRegexAux acc ('[':xs) =
+        -- Usando la función auxiliar extractBracketed encontramos el contenido entre corchetes balanceados.
+        -- Dicha función devuelve lo que hay dentro de los corchetes y lo que hay despues del corchete de cierre en formato de tupla
+    let (inside, restAfterBracket) = extractBracketed xs
+         -- Con base a lo que encontremos dentro de los corchetes,
+         -- Si la lista define al conjunto es vacío, notificamos que no se puede agregar este conjunto explícitamente a una expresion regular
+         -- Si no lo es, reconstruimos la expresion que define una lista/rango en haskell que encontramos en el contenido entre corchetes.
+        lista =  if inside == [] then error "Conjunto vacío no soportado" else '[' : inside ++ "]"
+        -- Con ayuda de la función auxiliar expandList, nombramos todos los elementos que pertenecen al conjunto definido
+        expanded = expandList lista
+        -- Aplicamos la union entre los elementos de la lista para que todos sean reconocidos en la regex como posibles valores
+        -- para esto, tambien aplicamos a cada elemento de la lista el constructor base Symbol
+        regexList = foldr1 Union (map Symbol expanded)
+        -- Aplicamos operadores postfijos al contenido entre corchetes
+        (exprWithPostOps, remainingAfterPostOps) = applyPostOperators regexList restAfterBracket
+        -- Verificamos si el acumulador de la llamada es vacio o no
+        actual_acc = case acc of
+          -- Si lo es, regresamos solo la expresion a la que le aplicamos los operadores
+          Nothing -> Just exprWithPostOps
+          -- Si no lo es y no encontramos un operador que aplicar antes, entonces
+          -- se trata de una concatenación con la regex que se ha acumulado hasta ahora
+          -- así que la aplicamos
+          Just a  -> Just (Concat a exprWithPostOps)
+       -- Despues de asociar la expresion regular a la cadena que define el conjunto, continuamos haciendo recursion
+       -- con el resto de la cadena de entrada (lo que estaba después de la definición del conjunto) y el 
+       -- acumulador actualizado.
+    in getRegexAux actual_acc remainingAfterPostOps
 -- Caso especial: Si se desea utilizar un símbolo reservado como caracter dentro de la
 -- regex, deberá escribirse en la cadena de entrada: '\\+', '\\*', '\\(' '\\)' según sea el caso.
 -- Nota: En haskell se utiliza '\\'  porque '\' está reservada para saltos de linea, tabulacion, etc.
@@ -161,39 +192,124 @@ getRegexAux acc (x:xs)
              Just a -> getRegexAux (Just (Concat a current)) xs
 
 
+
 -- ------------------------------------------------------------------------------
--- Función para extraer el contenido entre paréntesis balanceados
+-- Función para extraer el contenido entre corchetes balanceados.
+-- Hacemos uso de la función auxiliar extract.
+-- Asumimos que si la funcion se mando a llamar es porque encontramos un corchete
+-- que abre, asi que iniciamos el contador de corchetes abiertos en 1.
+-- Si los corchetes no están balanceados, se notifica el error de desbalance.
+-- ------------------------------------------------------------------------------
+extractBracketed :: String -> (String, String)
+extractBracketed s = extract 1 '[' ']' [] s
+
+-- ------------------------------------------------------------------------------
+-- Función para encontrar todos los elementos de una lista/rango que actualmente
+-- no tiene el formato de lista si no de String.
+-- Se les asociará el tipo de dato Char
+-- ------------------------------------------------------------------------------
+expandList :: String -> [Char]
+expandList s =
+  let trimmed = dropWhile isSpace s
+  in case unwrapBrackets trimmed of
+       Just inner ->
+         case findRange inner of
+           Just (a,b) -> [a..b]
+           Nothing ->
+             -- Si no es rango, intentamos leer la lista/str tal cual
+             case readMaybe trimmed :: Maybe [Char] of
+               Just cs -> cs
+               Nothing -> error $ "Formato de lista no reconocido: " ++ s
+       Nothing ->
+         -- No está entre corchetes entonces pude ser una cadena literal y usamos try read
+         case readMaybe s :: Maybe [Char] of
+           Just cs -> cs
+           Nothing -> error $ "Formato de lista no reconocido: " ++ s
+
+-- ------------------------------------------------------------------------------
+-- Verificacion para eliminar corchetes exteriores, si aún existen en la cadena y
+-- conservar interior de la lo que encuentre entre ellos.
+-- ------------------------------------------------------------------------------
+unwrapBrackets :: String -> Maybe String
+unwrapBrackets xs =
+  let t = dropWhile isSpace xs
+  in if not (null t) && head t == '[' && last t == ']'
+       then Just (init (tail t))
+       else Nothing
+
+-- ------------------------------------------------------------------------------
+-- Busca un rango de la forma 'a'..'z' dentro del string.
+-- Devuelve Just (startChar, endChar) o Nothing
+-- ------------------------------------------------------------------------------
+findRange :: String -> Maybe (Char, Char)
+findRange s = search 0 (filterIndices s)
+  where
+    len = length s
+    -- filtramos para tener acceso seguro a índices
+    filterIndices :: String -> String
+    filterIndices = id  -- usamos el string tal cual (no removemos espacios aquí)
+
+    -- buscamos en cada posición la secuencia: '\'' c '\'' '.' '.' '\'' d '\''
+    search i str
+      | i + 7 >= len = Nothing
+      | otherwise =
+          if at i '\'' && at (i+2) '\'' && at (i+3) '.' && at (i+4) '.' &&
+             at (i+5) '\'' && at (i+7) '\''
+            then Just (str !! (i+1), str !! (i+6))
+            else search (i+1) str
+      where
+        at j ch = (str !! j) == ch
+
+-- ------------------------------------------------------------------------------
+-- Función para extraer el contenido entre paréntesis balanceados.
+-- Hacemos uso de la función auxiliar extract.
 -- Asumimos que si la funcion se mando a llamar es porque encontramos un paréntesis
---  que abre,  asi que iniciamos el contador de parentesis abiertos en 1
+-- de apertura, asi que iniciamos el contador de paréntesis abiertos en 1.
+-- Si los paréntesis no están balanceados, se notifica el error de desbalance.
 -- ------------------------------------------------------------------------------
 extractParenthesized :: String -> (String, String)
-extractParenthesized s = extract 1 [] s 
-  where
-    -- Función auxiliar donde verificamos el balance de paréntesis
-    extract :: Int -> String -> String -> (String, String)
-    -- parentesis que abre -> buscamos un paréntesis más.
-    extract n acc ('(':rest) = extract (n+1) ('(':acc) rest
-    extract n acc (')':rest)
-      -- Si el contador está en 1, los parentesis estan balanceados
-      -- el parentesis encontrado cierra el inicial.
-      -- hacemos reverse, porque acumulamos insertando al inicio.
-      | n == 1 = (reverse acc, rest)
-      -- En otro caso, es el cierre de otro parentesis que fue abierto
-      -- identificamos un cierre -> buscamos un paréntesis menos.
-      | otherwise = extract (n-1) (')':acc) rest
-    -- cualquier otro caracter, lo acumulamos.
-    extract n acc (c:rest) = extract n (c:acc) rest
-    -- Si termina de revisar la cadena y aún hay paréntesis sin cerrar,
-    -- significa que faltan paréntesis de cierre.
-    extract _ acc [] = error "Paréntesis de cierre incompletos"
+extractParenthesized s = extract 1 '(' ')' [] s
 
+-- ------------------------------------------------------------------------------
+-- Función auxiliar para verificar el balance de caracteres en una expresión y
+-- obtener el contenido entre dichos caracteres delimitadores.
+-- Utiliza un contador para saber cuantos caracteres más debe buscar cuando
+-- encuentra un nuevo caracter de apertura (este debe ser colocado en el primer
+-- oarametro que recibe la función y es de tipo char).
+-- El contador disminuye tras encontrar un caracter de cierre (que tendrá que 
+-- definirse en el segundo parametro de tipo char que se recibe).
+-- Para esta implementación de código, se asume que cuando se manda a llamar
+-- a la función, hemos encontrado ya un caracter de apertura, por lo que el caso
+-- base es 1 en lugar de 0. Además, asumimos que solo se mandará a llamar para
+-- saber si hay paréntesis o corchetes, por lo que los mensajes de error solo
+-- contemplan estos casos.
+-- ------------------------------------------------------------------------------
+extract :: Int -> Char -> Char -> String -> String -> (String, String)
+extract n a c acc (x:rest)
+  -- Caracter de apertura -> buscamos un caracter de cierre más.
+  | x == a = extract (n+1) a c (x:acc) rest
+  -- Caracter de cierre, tenemos 2 casos.
+  -- (1) Si el contador está en 1, los caracteres de apertura y cierre
+  -- estan balanceados pues el caracter de cierre encontrado corresponde
+  -- al caracter inicial por quien se manda a llamar esta función.
+  -- Hacemos reverse, porque acumulamos insertando al inicio y terminamos.
+  | x == c && n == 1 = (reverse acc, rest)
+  -- (2) Si es un caracter de cierre que corresponde a otro caracter de apertura
+  -- n =! 1, entonces buscamos un caracter de cierre menos.
+  | x == c = extract (n-1) a c (c:acc) rest
+  -- Cualquier otro caracter, lo acumulamos.
+  | otherwise = extract n a c (x:acc) rest
+-- Si termina de revisar la cadena y aún hay caracteres de apertura sin cerrar,
+-- notificamos el error.
+extract _ a c acc [] = 
+  if a == '(' then error "Paréntesis de cierre incompletos"
+  else error "Corchetes de cierre incompletos"
 
 -- ------------------------------------------------------------------------------
 -- Parse para una expresión completa (puede contener operadores)
 -- ------------------------------------------------------------------------------
 parseCompleteExpression :: String -> Maybe Regex
 parseCompleteExpression s = getRegexAux Nothing s --Nothing indica que no hay expresión acumulada al inicio
-
 
 -- ------------------------------------------------------------------------------
 -- Aplica operadores que se encuentran después de una expresión

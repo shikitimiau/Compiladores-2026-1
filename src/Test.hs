@@ -104,7 +104,8 @@ pruebasgetRegex = forAll genRegexString $ \(s, shouldBeValid) ->
                  Right _ -> shouldBeValid   -- no falló, debió ser válida
                  Left _  -> not shouldBeValid  -- falló, debió ser inválida
 
-
+-- Regex que representa el lenguaje IMP
+imp = "([c | c <- ['a'..'z'] ++ ['A'..'Z']]([c | c <- ['a'..'z'] ++ ['A'..'Z']]*)['0'..'9']*)+((0)+(['1'..'9']['0'..'9']*)+(-['1'..'9']['0'..'9']*))+((\\+)+(-)+(\\*)+(/))+((<)+(>)+(=))+((:=))+((if)+(then)+(else)+(while)+(do))+((;)+(\\+))"
 
 -- ------------------------------------------------------------------------------
 -- =============================================================================

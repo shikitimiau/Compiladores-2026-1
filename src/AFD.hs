@@ -9,8 +9,10 @@
 -- | > Rosas Franco Diego Angel
 module AFD where
     
-import Data.List (sort, nub)
+import Data.List (sort)
 import Data.Maybe (fromMaybe)
+import qualified Data.Set as Set
+import qualified Data.Map as Map
 import  AFN
 
 -- ------------------------------------------------------------------------------
@@ -75,8 +77,8 @@ afn_to_AFD n = AFD {
 }  where 
     -- 1. Estado inicial del AFD: el conjunto que solo contiene el estado inicial del AFN.
     -- Usamos sort y nub para tener una representación canónica.
-    initialAFNStates = sort . nub $ [inicialN n]
-    initialSuperState = ("q0", initialAFNStates)
+    initialAFNStates = Set.singleton (inicialN n)
+    initialSuperState = ("q0", Set.toList initialAFNStates)
     
     -- 2. El bucle principal: construir recursivamente los estados y transiciones.
     -- Empezamos con una worklist que solo tiene el estado inicial.
@@ -123,10 +125,10 @@ buildAFD n (currentSuperState:restWorklist) processed trans nextStateId =
 -- nuevas transiciones
 -- ------------------------------------------------------------------------------
 processSymbol :: AFN -> [SuperState] -> SuperState -> ([Trans_afd], [SuperState], Int) -> Char -> ([Trans_afd], [SuperState], Int)
-processSymbol n allKnownStates (currentName, currentAFNStates) (accTrans, accWorklist, accId) symbol =
-    if isTargetEmpty
-    then (accTrans, accWorklist, accId) -- No encontramos transiciones
-    else
+processSymbol n allKnownStates (currentName, currentAFNStates) (accTrans, accWorklist, accId) symbol
+    -- No encontramos transiciones
+    | Set.null targetSet = (accTrans, accWorklist, accId)
+    | otherwise =
         case maybeTargetSuperState of
             -- Caso 1: El super-estado destino ya existe.
             Just (targetName, _) -> ((currentName, symbol, targetName) : accTrans, accWorklist, accId)
@@ -135,15 +137,14 @@ processSymbol n allKnownStates (currentName, currentAFNStates) (accTrans, accWor
             Nothing -> (newTrans : accTrans, newSuperState : accWorklist, accId + 1)
     where
         -- Se calcula el conjunto de estados destino y se verifica si está vacío.
-        targetAFNStates = move n currentAFNStates symbol
-        isTargetEmpty = null targetAFNStates
+        targetSet = move n (Set.fromList currentAFNStates) symbol
 
         -- Se busca si ya contamos con el superEstado.
-        maybeTargetSuperState = findSuperStateByContent targetAFNStates allKnownStates
+        maybeTargetSuperState = findSuperStateByContent (Set.toList targetSet) allKnownStates
 
         -- Se crea un nuevo superEstado en función de los parametros y los estados alcanzables
         newName = "q" ++ show accId
-        newSuperState = (newName, targetAFNStates)
+        newSuperState = (newName, Set.toList targetSet)
         newTrans = (currentName, symbol, newName)
 
 
@@ -151,15 +152,19 @@ processSymbol n allKnownStates (currentName, currentAFNStates) (accTrans, accWor
 -- Función auxiliar para encontrar los estados alcanzables a partir de un 
 -- conjunto de estados (Funciona como la concatenación de estados)
 -- ------------------------------------------------------------------------------
-move :: AFN -> [String] -> Char -> [String]
-move n fromStates symbol = sort . nub $ allDestinations
-    where allDestinations = concatMap (\s -> findTransitionsForState n s symbol) fromStates
-
-
+move :: AFN -> Set.Set String -> Char -> Set.Set String
+move n fromStates symbol =
+    Set.fromList [ dest
+                 | s <- Set.toList fromStates
+                 , (s', c, dests) <- transicionesN n
+                 , s == s' && c == symbol
+                 , dest <- dests
+                 ]
 -- ------------------------------------------------------------------------------
 -- Función auxiliar para encontrar todas las transiciones para un estado 
 -- dado un símbolo, basandonos en los estados de transición del 
 -- autómata finito determinista
+-- no es necesaria? 
 -- ------------------------------------------------------------------------------
 findTransitionsForState :: AFN -> String -> Char -> [String]
 findTransitionsForState n state symbol =
@@ -173,10 +178,10 @@ findTransitionsForState n state symbol =
 -- ------------------------------------------------------------------------------
 findSuperStateByContent :: [String] -> [SuperState] -> Maybe SuperState
 findSuperStateByContent _ [] = Nothing
-findSuperStateByContent content (superState:ss)
-    | content == sContent = Just superState -- Los contenidos son iguales, regresamos el superEstado
-    | otherwise           = findSuperStateByContent content ss -- Buscamos recursivamente en el resto de la lista
-    where sContent = (snd superState)
+findSuperStateByContent content ((name, stList):rest)
+    | sContent == Set.fromList stList = Just (name, stList) -- Los contenidos son iguales, regresamos el superEstado
+    | otherwise = findSuperStateByContent content rest -- Buscamos recursivamente en el resto de la lista
+    where sContent = Set.fromList content
 
 -- ------------------------------------------------------------------------------
 -- Función auxiliar para encontrar todos los estados finales 
@@ -184,7 +189,6 @@ findSuperStateByContent content (superState:ss)
 -- al menos un estado final del autómata finito no determinista
 -- ------------------------------------------------------------------------------
 findFinalStates :: String -> [SuperState] -> [String]
-findFinalStates finalStateAFN allSuperStates =
-    -- Filtramos todos los super estados que cumplan con contener un estado final y después solo tomamos
-    -- el elemento inicial de la tupla (El estado)
-    map fst $ filter (\(_, afnStates) -> finalStateAFN `elem` afnStates) allSuperStates 
+-- Recuperamos todos los super estados que cumplan con contener un estado final 
+-- tener el elemento inicial de la tupla (El estado)
+findFinalStates finalStateAFN allSuperStates = [name | (name, afnStates) <- allSuperStates, finalStateAFN `elem` afnStates]

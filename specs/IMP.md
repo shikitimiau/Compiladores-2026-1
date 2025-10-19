@@ -4,4 +4,4 @@
 "(<)+(>)+(=)" "operador logico"
 "(:=)" "asignacion"
 "(if)+(then)+(else)+(while)+(do)" "palabra reservada"
-"(;)+(\\+)" "nomeacuerdo"
+"(;)+(\\+)" "especiales"

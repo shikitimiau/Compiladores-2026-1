@@ -10,12 +10,13 @@
 module Main where
 
 import Regex
+import AFNEp
+import AFN
 import AFD
 import AFDmin
 
 import Test.QuickCheck -- Para hacer pruebas con aleatorieidad
 import Control.Exception (try, evaluate, SomeException) -- Para manejar las excepciones esperadas en las pruebas
-import Control.Monad (replicateM) -- 
 import Data.Char (chr) -- Actualmente usado para convertir enteros a caracteres
 
 
@@ -115,14 +116,35 @@ imp2 = "([c | c <- ['a'..'z'] ++ ['A'..'Z']]([c | c <- ['a'..'z'] ++ ['A'..'Z']]
         ++ "+ ((if) + (then) + (else) + (while) + (do))"
         ++ "+ ((;) + (\\+))"
 
+-- @ identificadores
+-- ^ enteros
+-- ~ operadores
+-- { opbool
+-- } asignacion
+-- ¡ reservadas
+-- ! especiales
+imp3 = "([c | c <- ['a'..'z'] ++ ['A'..'Z']]([c | c <- ['a'..'z'] ++ ['A'..'Z']]*)['0'..'9']*)#@"
+        ++ "+ ((0) + (['1'..'9']['0'..'9']*) + (-['1'..'9']['0'..'9']*))#^"
+        ++ "+ ((\\+) + (-) + (\\*) + (/))#~"
+        ++ "+ ((<) + (>) + (=))#{"
+        ++ "+ ((:=))#}"
+        ++ "+ ((if) + (then) + (else) + (while) + (do))#¡"
+        ++ "+ ((;) + (\\+))#!"
 
+-- id = A(A*)D*
 identificadores = "([c | c <- ['a'..'z'] ++ ['A'..'Z']]([c | c <- ['a'..'z'] ++ ['A'..'Z']]*)['0'..'9']*)"
+-- enteros = 0 + ZD* + (-ZD*)
 enteros = "((0) + (['1'..'9']['0'..'9']*) + (-['1'..'9']['0'..'9']*))"
+-- op = (+)+(-)+(*)+(/)
 operadores = "((\\+) + (-) + (\\*) + (/))"
+-- opbool = (<) + (>) + (=)
 opbool = "((<) + (>) + (=))"
+-- asignacion = :=
 asig = "((:=))"
+-- palabras reservadas = if + then  +  else + while + do
 reservadas = "((if) + (then) + (else) + (while) + (do))"
-nomeacuerdo = "((;) + (\\+))"
+-- simbolos especiales = ; + +
+especiales = "((;) + (\\+))"
 
 
 -- ------------------------------------------------------------------------------

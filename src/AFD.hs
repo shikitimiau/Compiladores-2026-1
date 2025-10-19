@@ -80,7 +80,7 @@ afn_to_AFD n = AFD {
     initialAFNStates = Set.singleton (inicialN n)
     initialSuperState = ("q0", Set.toList initialAFNStates)
     
-    -- 2. El bucle principal: construir recursivamente los estados y transiciones.
+    -- 2. El ciclo principal: construir recursivamente los estados y transiciones.
     -- Empezamos con una worklist que solo tiene el estado inicial.
     -- El '1' es el contador para nombrar nuevos estados (S1, S2, ...).
     (allSuperStates, allTransitions) = buildAFD n [initialSuperState] [] [] 1

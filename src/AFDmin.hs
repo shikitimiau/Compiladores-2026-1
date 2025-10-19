@@ -22,7 +22,9 @@
 module AFDmin where
 
 import AFD
-import Data.List (nub, sort, (\\), partition)
+import Data.List (sort, partition)
+import qualified Data.Set as Set
+import qualified Data.Map as Map
 
 
 -- ------------------------------------------------------------------------------
@@ -65,9 +67,10 @@ minimizaAFDDesde start afd =
       iniMin       = findGroupName (inicialD afdReachable) gruposEquiv
 
       -- Estados finales: grupos que contienen al menos un estado final original
-      finMin       = nub [ gName | gName <- map fst gruposEquiv
-                                 , any (`elem` finalD afdReachable)
-                                       (fromMaybeGroup gName gruposEquiv) ]
+      -- Usamos Set para evitar duplicados eficientemente
+      finalSet     = Set.fromList (finalD afdReachable)
+      finMin       = [ gName | (gName, gStates) <- gruposEquiv
+                             , any (`Set.member` finalSet) gStates ]
   in 
       -- Se crea el nuevo AFD mínimo
       AFD
@@ -89,31 +92,34 @@ minimizaAFDDesde start afd =
 removeUnreachable :: AFD -> AFD
 removeUnreachable afd =
   let 
-      -- Calcula la lista de estados alcanzables desde el inicial
-      reachables = reachableStates afd [inicialD afd]
+      -- Calcula el conjunto de estados alcanzables desde el inicial
+      reachableSet = reachableStates afd (Set.singleton (inicialD afd))
+      reachables   = Set.toList reachableSet
+      
+      -- Convertimos a Set para búsquedas eficientes
+      reachableSet' = reachableSet
   in 
       -- Se filtran los componentes del AFD (estados, transiciones, finales)
       afd 
         { estadosD = reachables
-        , transicionesD = filter (\(e,_,_) -> e `elem` reachables) (transicionesD afd)
-        , finalD = filter (`elem` reachables) (finalD afd)
+        , transicionesD = filter (\(e,_,_) -> Set.member e reachableSet') (transicionesD afd)
+        , finalD = filter (`Set.member` reachableSet') (finalD afd)
         }
 
 
 ---------------------------------------------------------------------------
 -- Calcula recursivamente los estados alcanzables desde un conjunto inicial
 --
---   Usa recursión sobre listas: en cada paso se obtienen los nuevos estados
---   que pueden alcanzarse desde los ya visitados, hasta que el conjunto no crezca más.
+--   Usa Set para operaciones eficientes de unión y pertenencia
 ---------------------------------------------------------------------------
-reachableStates :: AFD -> [String] -> [String]
+reachableStates :: AFD -> Set.Set String -> Set.Set String
 reachableStates afd visited =
   let 
       -- Obtiene los estados alcanzables directamente desde los visitados
-      next = nub [ q' | (q,_,q') <- transicionesD afd, q `elem` visited ]
+      next = Set.fromList [ q' | (q,_,q') <- transicionesD afd, Set.member q visited ]
 
-      -- Combina los nuevos con los ya visitados (evitando duplicados con nub)
-      new  = nub (next ++ visited)
+      -- Combina los nuevos con los ya visitados
+      new  = visited `Set.union` next
   in 
       -- Caso base: si ya no hay nuevos estados, la búsqueda termina
       if new == visited 
@@ -134,11 +140,13 @@ groupEquivalentsDesde :: Int -> AFD -> [Grupo]
 groupEquivalentsDesde start afd =
   let 
       allStates   = estadosD afd
-      finals      = finalD afd
-      nonFinals   = allStates \\ finals
+      finalSet    = Set.fromList (finalD afd)
+      
+      -- Usamos filter en lugar de \\ para mejor eficiencia
+      nonFinals   = filter (`Set.notMember` finalSet) allStates
 
       -- Partición inicial: finales vs no finales (base de la minimización)
-      initPart    = [finals, nonFinals]
+      initPart    = [finalD afd, nonFinals]
 
       -- Refinamiento de la partición inicial hasta que no cambie más
       refined     = refinePartition afd initPart
@@ -158,22 +166,26 @@ groupEquivalentsDesde start afd =
 refinePartition :: AFD -> [[String]] -> [[String]]
 refinePartition afd part =
   let 
+      -- Creamos un mapa de estado a grupo para búsquedas rápidas
+      groupMap = buildGroupMap part
+      
       -- 'concatMap' aplica la función 'splitGroup' a cada grupo de la partición actual.
-      --   splitGroup devuelve una lista de subgrupos resultantes al dividir el grupo
-      --   original según el comportamiento de sus estados.
-      --   Luego 'concatMap' concatena todas esas listas de subgrupos en una sola lista,
-      --   produciendo así la nueva partición 'newPart'.
-      newPart = concatMap (splitGroup afd part) part
+      newPart = concatMap (splitGroup afd part groupMap) part
   in 
       -- Se compara la nueva partición con la anterior (tras ordenar los grupos).
       -- Si son idénticas, significa que la partición se estabilizó: 
-      --   ya no hay más distinciones entre estados equivalentes, y se devuelve el resultado.
       if sort newPart == sort part
         then newPart
         -- En caso contrario, se continúa refinando la nueva partición.
-        -- Se llama recursivamente a 'refinePartition' con 'newPart' como nueva entrada.
-        -- Esto asegura que el proceso se repita hasta alcanzar un punto fijo.
         else refinePartition afd newPart
+
+
+---------------------------------------------------------------------------
+-- Construye un mapa de estado a grupo para búsquedas rápidas
+---------------------------------------------------------------------------
+buildGroupMap :: [[String]] -> Map.Map String [String]
+buildGroupMap part =
+  Map.fromList [ (q, g) | g <- part, q <- g ]
 
 
 ---------------------------------------------------------------------------
@@ -182,13 +194,15 @@ refinePartition afd part =
 --   Si dos estados se comportan diferente (van a distintos grupos para algún símbolo),
 --   se separan en subgrupos.
 ---------------------------------------------------------------------------
-splitGroup :: AFD -> [[String]] -> [String] -> [[String]]
-splitGroup afd part group =
+splitGroup :: AFD -> [[String]] -> Map.Map String [String] -> [String] -> [[String]]
+splitGroup afd part groupMap group =
   let 
+      -- Creamos un mapa de transiciones para búsquedas O(1)
+      transMap = Map.fromList [ ((q, a), q') | (q, a, q') <- transicionesD afd ]
+      
       -- 'classify' construye, para cada estado q, una lista que representa su "firma":
       --   es decir, a qué grupo va a parar con cada símbolo del alfabeto.
-      --   Si dos estados tienen la misma firma, son indistinguibles hasta este punto.
-      classify q = [ findGroup (delta afd q a) part | a <- alfabetoD afd ]
+      classify q = [ findGroupWithMap (delta' transMap q a) groupMap | a <- alfabetoD afd ]
 
       -- 'groupByEq' usa esa clasificación para reunir en el mismo subgrupo
       --   aquellos estados con firmas idénticas.
@@ -196,6 +210,20 @@ splitGroup afd part group =
   in 
       -- El resultado es una lista de subgrupos derivados del grupo original.
       grouped
+
+
+---------------------------------------------------------------------------
+-- Versión optimizada de delta usando Map para búsquedas O(1)
+---------------------------------------------------------------------------
+delta' :: Map.Map (String, Char) String -> String -> Char -> String
+delta' transMap q a = Map.findWithDefault "" (q, a) transMap
+
+
+---------------------------------------------------------------------------
+-- Busca el grupo que contiene un estado dado usando el mapa (más rápido)
+---------------------------------------------------------------------------
+findGroupWithMap :: String -> Map.Map String [String] -> [String]
+findGroupWithMap q groupMap = Map.findWithDefault ["Trash"] q groupMap
 
 
 ---------------------------------------------------------------------------
@@ -232,14 +260,27 @@ delta afd q a =
 ---------------------------------------------------------------------------
 buildTransitions :: AFD -> [Grupo] -> [Trans_afd]
 buildTransitions afd grupos =
-  [ (gName, a, findGroupName (delta afd (head gStates) a) grupos)
-  | (gName, gStates) <- grupos        -- Para cada grupo de estados equivalentes
-  , not (null gStates)                -- (evita grupos vacíos)
-  , a <- alfabetoD afd                -- Para cada símbolo del alfabeto
-  ]
-  -- La función toma el primer estado del grupo (todos son equivalentes)
-  -- y calcula su transición bajo cada símbolo.
-  -- Luego, con 'findGroupName', traduce el destino al nombre del grupo correspondiente.
+  let
+      -- Precomputamos un mapa de estado a nombre de grupo para eficiencia
+      stateToGroupMap = Map.fromList 
+        [ (state, groupName) 
+        | (groupName, states) <- grupos 
+        , state <- states 
+        ]
+      
+      -- Generamos todas las transiciones y usamos Map para eliminar duplicados
+      -- usando la tripleta (origen, símbolo, destino) como clave
+      transitionsMap = Map.fromListWith (\_ old -> old)  -- Mantener el primero encontrado
+          [ ((gName, a), Map.findWithDefault "Trash" (delta afd (head gStates) a) stateToGroupMap)
+          | (gName, gStates) <- grupos        -- Para cada grupo de estados equivalentes
+          , not (null gStates)                -- (evita grupos vacíos)
+          , a <- alfabetoD afd                -- Para cada símbolo del alfabeto
+          ]
+  in
+      -- Reconstruimos las transiciones desde el mapa
+      [ (origen, simbolo, destino) 
+      | ((origen, simbolo), destino) <- Map.toList transitionsMap 
+      ]
 
 
 ---------------------------------------------------------------------------

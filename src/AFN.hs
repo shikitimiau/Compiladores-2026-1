@@ -59,7 +59,7 @@ afnEp_to_AFN :: AFNEp -> AFN
 afnEp_to_AFN m =  AFN {
   estadosN = estados m,
   alfabetoN =  alfabeto m,
-  transicionesN = trans_eps_to_afn m,
+  transicionesN = filterEmptyTransitions (trans_eps_to_afn m),
   inicialN = inicial m,
   finalN = final m
   }
@@ -149,6 +149,13 @@ formato (x:xs)
 to_char :: Maybe Char -> Char
 to_char Nothing = '~'
 to_char (Just a) = a
+
+---------------------------------------------------------------------------
+-- Elimina todas las transiciones que van al vacío.
+---------------------------------------------------------------------------
+filterEmptyTransitions :: [Trans_afn] -> [Trans_afn]
+filterEmptyTransitions =
+  filter (\(_, _, dest) -> dest /= [])
 
 
 -- ------------------------------------------------------------------------------

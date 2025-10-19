@@ -146,6 +146,35 @@ reservadas = "((if) + (then) + (else) + (while) + (do))"
 -- simbolos especiales = ; + +
 especiales = "((;) + (\\+))"
 
+-- ------------------------------------------------------------------------------
+-- =============================================================================
+--                                Pruebas AFD
+-- =============================================================================
+-- ------------------------------------------------------------------------------
+
+-- Ejemplo con "(0+1)*1"
+afnEjemplo1 = AFN 
+  { estadosN = ["q0","q1","q2","q3","q4","q5","q6","q7","q8","q9"], 
+    alfabetoN = "01", 
+    transicionesN = 
+      [ ("q0",'0',["q0","q1","q2","q4","q5","q7","q8"]),("q1",'0',["q0","q1","q2","q4","q5","q7","q8"]),
+        ("q1",'1',["q0","q2","q3","q4","q5","q7","q8","q9"]),("q2",'1',["q0","q2","q3","q4","q5","q7","q8"]),
+        ("q3",'0',["q0","q1","q2","q4","q5","q7","q8"]),("q3",'1',["q0","q2","q3","q4","q5","q7","q8","q9"]),
+        ("q4",'0',["q0","q1","q2","q4","q5","q7","q8"]),("q4",'1',["q0","q2","q3","q4","q5","q7","q8"]),
+        ("q5",'0',["q0","q1","q2","q4","q5","q7","q8"]),("q5",'1',["q0","q2","q3","q4","q5","q7","q8","q9"]),
+        ("q6",'0',["q0","q1","q2","q4","q5","q7","q8"]),("q6",'1',["q0","q2","q3","q4","q5","q7","q8","q9"]),
+        ("q7",'1',["q9"]),("q8",'1',["q9"])],
+    inicialN = "q6", 
+    finalN = "q9"}
+
+-- Prueba : Construccion completa del AFD
+testAFD :: AFN -> IO ()
+testAFD afn = print $ afn_to_AFD afn 
+
+testAFD1 = testAFD afnEjemplo1
+testAFD2 = testAFD (getAFN "(0)+(ZD*)+(-ZD*)")
+testAFD3 = testAFD (getAFN "(0)+(['1'..'9']['0'..'9']*)+(-['1'..'9']['0'..'9']*)") -- Version extendida del testAFD2
+
 
 -- ------------------------------------------------------------------------------
 -- =============================================================================
@@ -230,6 +259,10 @@ main = do
   putStrLn "---- Pruebas Expresiones Regulares ----"
   quickCheckWith stdArgs { maxSuccess = 1000 } pruebasgetRegex
 
+  -- AFD --
+  putStrLn("\n---- AFD ----")
+  testAFD2
+
   -- AFDmin --
   putStrLn "\n---- Eliminación de inalcanzables ----"
   testUnreachables4
@@ -237,3 +270,4 @@ main = do
   testGroups4
   putStrLn "\n---- AFD mínimo ----"
   testAFDmin4
+

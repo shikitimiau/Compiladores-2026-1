@@ -192,3 +192,22 @@ findFinalStates :: String -> [SuperState] -> [String]
 -- Recuperamos todos los super estados que cumplan con contener un estado final 
 -- tener el elemento inicial de la tupla (El estado)
 findFinalStates finalStateAFN allSuperStates = [name | (name, afnStates) <- allSuperStates, finalStateAFN `elem` afnStates]
+
+
+funcionTransicionCaracter :: Char -> String -> [Trans_afd] -> String
+funcionTransicionCaracter x estadoA ys = do
+        let resultado = buscarEstados x estadoA ys
+        case resultado of
+            [] -> error "No hay una transicion dispoble"
+            (estadoI, c, estadoF):[] -> estadoF
+            _ -> error "El automata es no determinista"
+
+buscarEstados :: Char -> String -> [Trans_afd] -> [Trans_afd]
+buscarEstados x estadoA ys = [transicion | transicion@(q1, c, _) <- ys, q1 == estadoA, c == x]
+
+funcionTransicionCadena :: String -> String -> [Trans_afd] -> String
+funcionTransicionCadena [] estadoA ys = estadoA
+funcionTransicionCadena (c:cs) estadoA ys = funcionTransicionCadena cs (funcionTransicionCaracter c estadoA ys) ys
+
+hayTrancision :: Char -> String -> [Trans_afd] -> Bool
+hayTrancision x estadoA ys = not (null (buscarEstados x estadoA ys))

@@ -40,7 +40,7 @@ data AFNEp = AFNEp {
   transiciones :: [Trans_eps],
   inicial :: String,
   final :: String
-} deriving (Show)
+} deriving (Show, Eq)
 
 
 

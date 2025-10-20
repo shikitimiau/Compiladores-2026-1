@@ -24,7 +24,7 @@ data Regex = Symbol Char
            | Concat Regex Regex 
            | Union Regex Regex 
            | Star Regex
-           deriving (Show, Eq)
+           deriving (Show, Read, Eq)
 
 
 -- ------------------------------------------------------------------------------

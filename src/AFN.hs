@@ -140,28 +140,4 @@ to_char (Just a) = a
 -- Elimina todas las transiciones que van al vacío.
 ---------------------------------------------------------------------------
 filterEmptyTransitions :: [Trans_afn] -> [Trans_afn]
-filterEmptyTransitions =
-  filter (\(_, _, dest) -> dest /= [])
-
-
--- Ejemplo de uso:
--- El automáta que reconoce la expresión (0+1)*1, probado, concuerda con el resultado esperado.
-m2 = AFN {
-  estadosN = ["q0","q1","q2","q3","q4","q5","q6","q7","q8","q9"],
-  alfabetoN = "01",
-  transicionesN = [("q0",'0',["q0","q1","q2","q4","q5","q7","q8"]),
-                   ("q1",'0',["q0","q1","q2","q4","q5","q7","q8"]),
-                   ("q1",'1',["q0","q2","q3","q4","q5","q7","q8","q9"]),
-                   ("q2",'1',["q0","q2","q3","q4","q5","q7","q8"]),
-                   ("q3",'0',["q0","q1","q2","q4","q5","q7","q8"]),
-                   ("q3",'1',["q0","q2","q3","q4","q5","q7","q8","q9"]),
-                   ("q4",'0',["q0","q1","q2","q4","q5","q7","q8"]),
-                   ("q4",'1',["q0","q2","q3","q4","q5","q7","q8"]),
-                   ("q5",'0',["q0","q1","q2","q4","q5","q7","q8"]),
-                   ("q5",'1',["q0","q2","q3","q4","q5","q7","q8","q9"]),
-                   ("q6",'0',["q0","q1","q2","q4","q5","q7","q8"]),
-                   ("q6",'1',["q0","q2","q3","q4","q5","q7","q8","q9"]),
-                   ("q7",'1',["q9"]),
-                   ("q8",'1',["q9"])],
-  inicialN = "q6",
-  finalN = "q9"}
+filterEmptyTransitions = filter (\(_, _, dest) -> dest /= [])

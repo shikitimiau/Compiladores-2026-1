@@ -41,8 +41,21 @@
 -- |      > Concat. Concatenacion de dos regex: EE
 -- |      > Union. Union de dos regex: E + E
 -- |      > Star. Teorema de Kleene: E*
+-- |
 -- |   La agrupación correcta de subexpresiones regulares debe realizarse
 -- |   utilizando paréntesis correctamente balanceados.
+-- |
+-- |   En caso de que se quiera utilizar un caracter reservado para la 
+-- |   generación de expresiones regulares:
+-- |
+-- |                '+', '*', '(', ')','[', ']'
+-- | 
+-- |   Se debe agregar la doble barra de escape \\ antes del símbolo
+-- |
+-- |             '\\+', '\\*', '\\(', '\\)', '\\[', '\\]'
+-- | 
+-- |   Para evitar la ambiguedad en la aplicación de operadores y el
+-- |   símbolo reservado que se quiere usar en la regex.
 ---------------------------------------------------------------------------
 module Regex where
 

@@ -9,8 +9,10 @@
 -- | > Rosas Franco Diego Angel
 module AFN where
 
-import Data.Set (toList, fromList)
-import  AFNEp
+import Data.Set (Set)
+import qualified Data.Map as Map
+import qualified Data.Set as Set
+import AFNEp
 
 
 -- ------------------------------------------------------------------------------
@@ -40,7 +42,7 @@ data AFN = AFN {
   transicionesN :: [Trans_afn],
   inicialN :: String,
   finalN :: String
-} deriving (Show)
+} deriving (Show,Eq)
 
 
 -- ------------------------------------------------------------------------------
@@ -59,7 +61,7 @@ afnEp_to_AFN :: AFNEp -> AFN
 afnEp_to_AFN m =  AFN {
   estadosN = estados m,
   alfabetoN =  alfabeto m,
-  transicionesN = trans_eps_to_afn m,
+  transicionesN = filterEmptyTransitions (trans_eps_to_afn m),
   inicialN = inicial m,
   finalN = final m
   }
@@ -72,8 +74,7 @@ afnEp_to_AFN m =  AFN {
 -- correspondientes respecto a cada símbolo del alfabeto.
 -- ------------------------------------------------------------------------------
 trans_eps_to_afn :: AFNEp -> [Trans_afn]
-trans_eps_to_afn m = concat $
-  map (trans_eps_to_afn_aux m (transiciones m) (alfabeto m)) (estados m)
+trans_eps_to_afn m = concatMap (trans_eps_to_afn_aux m (transiciones m) (alfabeto m)) (estados m)
 
 
 -- ------------------------------------------------------------------------------
@@ -104,8 +105,7 @@ eclosure (x:xs) m q1  = eclosure xs m q1
 -- Función auxiliar para unir las eclosure de cada estado en una sola lista
 -- ------------------------------------------------------------------------------
 eclosure2 ::  AFNEp -> [String]  -> [String]
-eclosure2 _ [] = []
-eclosure2 m (x:xs) = eclosure (transiciones m) m x ++ eclosure2 m xs
+eclosure2 m eclist = rmDup (concatMap (eclosure (transiciones m) m) eclist)
 
 
 -- ------------------------------------------------------------------------------
@@ -115,7 +115,7 @@ eclosure2 m (x:xs) = eclosure (transiciones m) m x ++ eclosure2 m xs
 -- (ninguna es transicion epsilon).
 -- ------------------------------------------------------------------------------
 do_trans_nep2 :: [Trans_eps] -> Char -> [String] -> [String]
-do_trans_nep2 l c qs = formato $ map (do_trans_nep l c) qs
+do_trans_nep2 l c qs = rmDup (concatMap (do_trans_nep l c) qs)
 
 
 -- ------------------------------------------------------------------------------
@@ -125,21 +125,7 @@ do_trans_nep2 l c qs = formato $ map (do_trans_nep l c) qs
 -- especificado.
 -- ------------------------------------------------------------------------------
 do_trans_nep :: [Trans_eps] -> Char -> String -> [String]
-do_trans_nep [] _ _ = [""]
-do_trans_nep ((q1, c1, q2):xs) c2 q3
-  | q1 == q3 && (to_char c1) == c2 = q2
-  | otherwise            = do_trans_nep xs c2 q3
-
-
--- ------------------------------------------------------------------------------
--- Función para dar un formato lista única a una lista conformada por listas
--- de cadenas. Omite las listas cuyo único elemento es la cadena vacía.
--- ------------------------------------------------------------------------------
-formato :: [[String]] -> [String]
-formato [] = []
-formato (x:xs)
-  | x == [""]   = formato xs
-  | otherwise =  x++formato xs
+do_trans_nep l c q = concat [dest | (src, Just ch, dest) <- l, src == q, ch == c]
 
 
 -- ------------------------------------------------------------------------------
@@ -150,37 +136,8 @@ to_char :: Maybe Char -> Char
 to_char Nothing = '~'
 to_char (Just a) = a
 
-
--- ------------------------------------------------------------------------------
--- Función para devolver el primer elemento de una 3-tupla
--- no se ocupa? 
--- ------------------------------------------------------------------------------
-fst3 :: (a,b,c) -> a
-fst3 (a,_,_) = a
-
-
--- Ejemplo de uso:
--- El automáta que reconoce la expresión (0+1)*1, probado, concuerda con el resultado esperado.
-m2 = AFN {
-  estadosN = ["q0","q1","q2","q3","q4","q5","q6","q7","q8","q9"],
-  alfabetoN = "01",
-  transicionesN = [("q0",'0',["q0","q1","q2","q4","q5","q7","q8"]),
-                   ("q0",'1',[]),
-                   ("q1",'0',["q0","q1","q2","q4","q5","q7","q8"]),
-                   ("q1",'1',["q0","q2","q3","q4","q5","q7","q8","q9"]),
-                   ("q2",'0',[]),
-                   ("q2",'1',["q0","q2","q3","q4","q5","q7","q8"]),
-                   ("q3",'0',["q0","q1","q2","q4","q5","q7","q8"]),
-                   ("q3",'1',["q0","q2","q3","q4","q5","q7","q8","q9"]),
-                   ("q4",'0',["q0","q1","q2","q4","q5","q7","q8"]),
-                   ("q4",'1',["q0","q2","q3","q4","q5","q7","q8"]),
-                   ("q5",'0',["q0","q1","q2","q4","q5","q7","q8"]),
-                   ("q5",'1',["q0","q2","q3","q4","q5","q7","q8","q9"]),
-                   ("q6",'0',["q0","q1","q2","q4","q5","q7","q8"]),
-                   ("q6",'1',["q0","q2","q3","q4","q5","q7","q8","q9"]),
-                   ("q7",'0',[]),("q7",'1',["q9"]),("q8",'0',[]),
-                   ("q8",'1',["q9"]),
-                   ("q9",'0',[]),
-                   ("q9",'1',[])],
-  inicialN = "q6",
-  finalN = "q9"}
+---------------------------------------------------------------------------
+-- Elimina todas las transiciones que van al vacío.
+---------------------------------------------------------------------------
+filterEmptyTransitions :: [Trans_afn] -> [Trans_afn]
+filterEmptyTransitions = filter (\(_, _, dest) -> dest /= [])

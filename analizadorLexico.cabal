@@ -62,7 +62,7 @@ library
 executable Test
     main-is:          Test.hs
     
-    hs-source-dirs:   samples
+    hs-source-dirs:   samples/imp
 
     build-depends:
         base ^>=4.18,

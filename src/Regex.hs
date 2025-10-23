@@ -1,3 +1,5 @@
+
+---------------------------------------------------------------------------
 -- | Proyecto 1: Constructor de un analizador lexico
 -- | Etapa: Reconocimiento de expresiones regulares (regex)
 -- | Equipo: Discípulos de Church
@@ -7,10 +9,47 @@
 -- | > Peña Mata Juan Luis
 -- | > Rodríguez Miranda Alexia
 -- | > Rosas Franco Diego Angel
+-- 
+-- | Descripción:
+-- |   Este módulo implementa un analizador y constructor de expresiones regulares válidas.
+-- |   La función principal `getRegex` recibe un string y devuelve la expresión regular
+-- |   asociada, en caso de que sea posible formarla. Si la cadena no tiene el formato
+-- |   esperado, notifica los errores correspondientes.
+-- |
+-- |   En la cadena de entrada se pueden incluir listas por extensión de elementos y rangos,
+-- |   usando la sintaxis de Haskell. Por ejemplo si se requiere utilizar un conjunto:
+-- |   
+-- |                     A = {a,b,c,d,...,x,y,z,A,B,C,D,...,X,Y,Z}
+-- |   se puede escribir en la cadena de entrada:
+-- |
+-- |                             "[['a..'z'] ++ ['A'..'Z']]"
+-- |
+-- |   o bien, usar el formato extendido de lista:
+-- |   
+-- |   "['a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','t','u','v','w','x','y','z']"
+-- |
+-- |    Otra manera de expresar el mismo conjunto sería mediante unión explícita:
+-- |
+-- |               "a+b+c+d+e+f+g+h+i+j+k+l+m+n+o+p+q+r+s+t+u+v+w+x+y+z"
+-- |
+-- |    Si se requiere realizar la concatenación de varios conjuntos, todas las listas
+-- |    deben colocarse dentro de un bloque de corchetes, por ejemplo:
+-- |
+-- |                          "[[]++[]++ ... ++[]++[]]"
+-- |    
+-- |    El módulo soporta los siguientes operadores de expresiones regulares:
+-- |      > Symbol. Regex de un solo caracter, por ejemplo 'a'
+-- |      > Concat. Concatenacion de dos regex: EE
+-- |      > Union. Union de dos regex: E + E
+-- |      > Star. Teorema de Kleene: E*
+-- |   La agrupación correcta de subexpresiones regulares debe realizarse
+-- |   utilizando paréntesis correctamente balanceados.
+---------------------------------------------------------------------------
 module Regex where
 
 import Text.Read (readMaybe)
 import Data.Char (isSpace)
+
 
 -- ------------------------------------------------------------------------------
 -- Definicion del tipo de dato Regex para representar una expresión regular
@@ -71,7 +110,7 @@ getRegexAux acc ('[':xs) =
          -- Con base a lo que encontremos dentro de los corchetes,
          -- Si la lista define al conjunto es vacío, notificamos que no se puede agregar este conjunto explícitamente a una expresion regular
          -- Si no lo es, reconstruimos la expresion que define una lista/rango en haskell que encontramos en el contenido entre corchetes.
-        lista =  if null inside then error "Conjunto vacío no soportado" else '[' : inside ++ "]"
+        lista = if null inside then error "Conjunto vacío no soportado" else inside
         -- Con ayuda de la función auxiliar expandList, nombramos todos los elementos que pertenecen al conjunto definido
         expanded = expandList lista
         -- Aplicamos la union entre los elementos de la lista para que todos sean reconocidos en la regex como posibles valores
@@ -96,10 +135,10 @@ getRegexAux acc ('[':xs) =
 -- Nota: En haskell se utiliza '\\'  porque '\' está reservada para saltos de linea, tabulacion, etc.
 getRegexAux acc ('\\':x:xs)
     | x `elem` reserved = 
-        let current = Symbol x
+        let reservado = Symbol x
         in case acc of
-             Nothing -> getRegexAux (Just current) xs
-             Just a  -> getRegexAux (Just (Concat a current)) xs
+             Nothing -> getRegexAux (Just reservado) xs
+             Just a  -> getRegexAux (Just (Concat a reservado)) xs
 -- Caso recursivo: Resuelve las llamadas para union, concatenacion y estrella de kleene
 getRegexAux acc (x:xs)
     | x == ')' = error "Parentesis de cierre no esperado" -- Encontrar un parentesis de cierre indica que no estan balanceados
@@ -185,13 +224,13 @@ getRegexAux acc (x:xs)
 
     -- Si el caso no cae en los anteriores, entonces es un símbolo del alfabeto
     | otherwise =
-        let current = Symbol x
+        let c = Symbol x
         in case acc of
             -- Si no hay nada acumulado, es el primer simbolo que encontramos
-             Nothing -> getRegexAux (Just current) xs
+             Nothing -> getRegexAux (Just c) xs
              -- Si hay algo acumulado, entonces este simbolo esta concatenado a 
              -- la expresion que se ha procesado hasta el momento
-             Just a -> getRegexAux (Just (Concat a current)) xs
+             Just a -> getRegexAux (Just (Concat a c)) xs
 
 
 -- ------------------------------------------------------------------------------
@@ -232,6 +271,8 @@ applyPostOperators expr rest = (expr, rest)
 -- Asumimos que si la funcion se mando a llamar es porque encontramos un corchete
 -- que abre, asi que iniciamos el contador de corchetes abiertos en 1.
 -- Si los corchetes no están balanceados, se notifica el error de desbalance.
+-- Devuelve en formato de tupla, el contenido entre corchetes y el resto de
+-- la cadena después del cierre de corchete.
 -- ------------------------------------------------------------------------------
 extractBracketed :: String -> (String, String)
 extractBracketed s = extract 1 '[' ']' [] s
@@ -243,6 +284,8 @@ extractBracketed s = extract 1 '[' ']' [] s
 -- Asumimos que si la funcion se mando a llamar es porque encontramos un paréntesis
 -- de apertura, asi que iniciamos el contador de paréntesis abiertos en 1.
 -- Si los paréntesis no están balanceados, se notifica el error de desbalance.
+-- Devuelve en formato de tupla, el contenido entre paréntesis y el resto de
+-- la cadena después del cierre de peréntesis.
 -- ------------------------------------------------------------------------------
 extractParenthesized :: String -> (String, String)
 extractParenthesized s = extract 1 '(' ')' [] s
@@ -253,7 +296,7 @@ extractParenthesized s = extract 1 '(' ')' [] s
 -- obtener el contenido entre dichos caracteres delimitadores.
 -- Utiliza un contador para saber cuantos caracteres más debe buscar cuando
 -- encuentra un nuevo caracter de apertura (este debe ser colocado en el primer
--- oarametro que recibe la función y es de tipo char).
+-- parametro que recibe la función y es de tipo char).
 -- El contador disminuye tras encontrar un caracter de cierre (que tendrá que 
 -- definirse en el segundo parametro de tipo char que se recibe).
 -- Para esta implementación de código, se asume que cuando se manda a llamar
@@ -285,43 +328,179 @@ extract _ a c acc [] =
 
 
 -- ------------------------------------------------------------------------------
--- Función para encontrar todos los elementos de una lista/rango que actualmente
--- no tiene el formato de lista si no de String.
--- Se les asociará el tipo de dato Char
+-- Función para encontrar listas/rangos definidos en formato de Haskell 
+-- dentro de una cadena.
+-- Si se detecta que la cadena es una instrucción válida en el lenguaje Haskell,
+-- se obtendrán las listas/rangos que estén representando y se concatenarán todos
+-- los elementos en una sola lista de tipo Char.
+-- Si la cadena no es una instrucción válida en el lenguaje Haskell, o se intenta
+-- crear una lista/rango que no esté conformada por caracteres, se notificará
+-- el error.
 -- ------------------------------------------------------------------------------
 expandList :: String -> [Char]
-expandList s =
-  -- Quitamos los espacios en blanco que se encuentren al inicio de la cadena y
-  -- obtenemos la lista de caracteres siguientes
-  let trimmed = dropWhile isSpace s
-  -- Usando la función auxiliar para obtener el contenido entre corchetes
-  -- Verificamos si la salida fue una cadena o se devolvió Nothing
-  in case unwrapBrackets trimmed of
-    Just inner ->
-      -- Si la salida es una cadena, usamos la funció auxiliar findRange para
-      -- verificar si se está definiendo una lista con la sintaxis de rango 
-      -- que maneja haskell: ['a'..'z]
-      case findRange inner of
+-- Si el primer símbolo es una comilla simple tratamos de
+-- obtener el contenido buscando un rango.
+expandList ('\'':xs) = getContent ('\'':xs)
+-- Si el primer símbolo es '['
+-- entonces debe ser un conjunto definido por
+-- una serie de concatenaciones de listas/rangos de Haskell
+expandList ('[':xs) =
+  let 
+    -- Obtenemos la lista de subcadenas que pueden denotar listas/rangos
+    -- con sintaxis de Haskell usando la función splitLists
+    subLists = splitLists ('[':xs)
+    
+    -- Obtenemos los elementos de cada lista definida y agregamos
+    -- todos esos elementos en una sola lista
+    expandedSubLists = concatMap getContent subLists
+  -- Finalmente, devolvemos la lista por extension.
+  in expandedSubLists
+-- En esta función la recursión depende de las funciones auxiliares
+-- por lo que, si no se puede generar con los casos de arriba, entonces
+-- el formato no puede ser válido.
+expandList str = error $ "Formato de lista no reconocido: " ++ str ++ ". Formato esperado: [Char]"
+
+
+-- ------------------------------------------------------------------------------
+-- Divide una cadena en subcadenas separadas por la secuencia de caracteres
+-- '++' y devuelve una lista de todas las subcadenas que fueron separadas
+-- con dicho operador.
+-- Utiliza la función splitListsAux para obtener todas subcadenas
+-- que se espera, denoten listas/rangos concatenados con la sintaxis de Haskell.
+-- ------------------------------------------------------------------------------
+splitLists :: String -> [String]
+splitLists s = splitListsAux s "" 0 False []
+
+
+-- ------------------------------------------------------------------------------
+-- Función encargada de obtener las subcadenas que pueden denotar listas o
+-- rangos en sintaxis de haskell dentro de una cadena.
+-- Requiere los siguientes parámetros:
+-- String <- Cadena que falta por procesar
+-- String <- Subcadena que se está procesado
+-- Int    <- Profundidad de corchetes anidados (supone que están balanceados)
+-- Bool   <- True si estamos dentro de comillas simples, False en otro caso
+-- [String] <- Acumulador de subcadenas que se han detectado separadas por '++'
+-- Cuando termina de procesar toda la cadena inicial, devuelve el acumulador
+-- donde se encuentran todas las subcadenas que se separaban por '++'
+-- Asume que la cadena no tiene espacios.
+-- ------------------------------------------------------------------------------
+splitListsAux :: String -> String -> Int -> Bool -> [String] -> [String]
+-- Caso base: No tenemos más caracteres que procesar en la cadena original
+-- Devolvemos el acumulador concatenado a la subcadena que se estaba procesando
+-- Utilizamos reverse porque los caracteres se agregaron al inicio
+splitListsAux [] inProgress depth inQuotes acc = acc ++ [reverse inProgress]
+
+-- Encontramos la secuencia '++' en la cadena que que falta por procesar
+splitListsAux ('+':'+':xs) inProgress depth inQuotes acc
+  -- No estamos dentro de subcorchetes y tampoco dentro de comillas simples
+ | depth == 0 && not inQuotes =
+  -- Seguimos la recursion con el resto de caracteres.
+  -- Agregamos al acumulador la subcadena que se estaba procesando (utilizamos
+  -- la función reverse porque los caracteres se agregaron al inicio).
+  -- Reiniciamos el valor de la cadena que se está procesando actualmente
+  -- y notificamos que no estamos dentro de subcorchetes ni en comillas simples
+  splitListsAux xs "" 0 False (acc ++ [reverse inProgress])
+  -- En caso de que no se cumpla lo anterior
+ | otherwise =
+  -- Seguimos la recursion con el resto de caracteres
+  -- Omitimos los simbolos '++'
+  -- Seguimos dentro de la misma cantidad de subcorchetes, y dentro de comillas
+  -- simples, con el mismo acumulador.
+  splitListsAux xs inProgress depth inQuotes acc
+
+-- Encontramos '[' en la cadena que falta por procesar
+splitListsAux ('[':xs) inProgress depth inQuotes acc =
+  -- Seguimos la recursion con el resto de caracteres
+  -- Concatenamos a la subcadena que se está procesando '['
+  -- La cantidad de subcorchetes abiertos aumenta.
+  -- El booleano para saber si estamos dentro de comillas simples 
+  -- y el acumulador de subcadenas no cambian.
+  splitListsAux xs ('[':inProgress) (depth + 1) inQuotes acc
+
+-- Encontramos ']' en la cadena que falta por procesar
+splitListsAux (']':xs) inProgress depth inQuotes acc =
+  -- Seguimos la recursion con el resto de caracteres
+  -- Concatenamos a la subcadena que se está procesando ']'
+  -- La cantidad de subcorchetes abiertos disminuye
+  -- El booleano para saber si estamos dentro de comillas simples 
+  -- y el acumulador no cambian.
+  splitListsAux xs (']':inProgress) (depth - 1) inQuotes acc
+
+-- Encontramos la comilla simple en la cadena que falta por procesar
+splitListsAux ('\'':xs) inProgress depth inQuotes acc =
+  -- Seguimos la recursion con el resto de caracteres
+  -- Concatenamos a la subcadena que se está procesando la comilla simple
+  -- La cantidad de subcorchetes abiertos y el acumulador no cambia.
+  -- El booleano para saber si estamos dentro de comillas cambia de 
+  -- True -> False, o, False -> True segun corresponda.
+  splitListsAux xs ('\'':inProgress) depth (not inQuotes) acc
+
+-- Si no es ninguno de los anteriores, seguimos la recursión con
+-- la cola de la lista y mismos valores de profundidad, booleano
+-- para saber si estamos en comillas simples o no, y mismo acumulador
+-- Concatenamos la cabeza de la lista a la cadena que se está procesando 
+splitListsAux (x:xs) inProgress depth inQuotes acc = 
+  splitListsAux xs (x:inProgress) depth inQuotes acc
+
+
+-- ------------------------------------------------------------------------------
+-- Función para encontrar todos los elementos de una lista/rango definida en
+-- formato de Haskell dentro de una cadena.
+-- Si se detecta que el formato de lista es válido en el lenguaje, se le asociará
+-- a cada elemento en la lista el tipo de dato Char.
+-- En otro caso, se notificará el error.
+-- Se asume que la cadena de entrada no tiene espacios en blanco
+-- ------------------------------------------------------------------------------
+getContent :: String -> [Char]
+getContent str =
+  let
+    -- Si la cadena no está entre corchetes, usamos la función auxiliar findRange para
+    -- verificar si se está definiendo una lista con la sintaxis de rango 
+    -- que maneja haskell: ['a'..'z]
+    tryRange s = 
+      case findRange s of
         -- Si en efecto, la cadena denotaba un rango, devolvemos el rango que define
-        Just (a,b) -> [a..b]
+        Just (a,b) -> Just [a..b]
+        -- En otro caso devolvemos Nothing
+        Nothing -> Nothing
+  -- Al llamarse la función getContetn, expandList o getRegexAux pudieron haber
+  -- removido los corchetes iniciales, por lo cual, verificamos la función auxiliar
+  -- unwrapBrackets si la cadena tenía corchetes o se devolvió Nothing (indicando
+  -- que la expresión ya no contenía corchetes al inicio y final de la lista)
+  in case unwrapBrackets str of
+    -- Si la cadena tenía corchetes y pudimos removerlos
+    Just withoutBrackets ->
+      -- Verificamos si la expresión representa un rango
+      case tryRange withoutBrackets of
+        -- En ese caso, lo devolvemos
+        Just rs -> rs
+        -- Si no se pudo detectar un rango, intentamos leer la cadena como
+        -- una lista por extensión
         Nothing ->
-          -- Si no es rango, intentamos leer el contenido de la cadena para saber si
-          -- está definiendose en un formato de lista distinto pero válido en Haskell
-          case readMaybe trimmed :: Maybe [Char] of
+          -- No agregamos corchetes porque unwrapBrackets regresó un string
+          -- que no se reconoció como rango, por lo que esperamos que sea
+          -- una lista por extensión de caracteres
+          case readMaybe withoutBrackets :: Maybe [Char] of
             -- Si logró leerse como una lista, la devolvemos asociandole el tipo Char
             Just cs -> cs
-            -- Si no logró leerse como lista, notificamos qel error
-            Nothing -> error $ "Formato de lista no reconocido: " ++ s ++ ". Formato esperado: [Char]"
+            -- Si no logró leerse como lista, notificamos el error
+            Nothing -> error $ "Formato de lista no reconocido: " ++ str ++ ". Formato esperado: [Char]"
+    -- Si la expresión no tenía corchetes
     Nothing ->
-      -- No está entre corchetes pero pude ser que ya se hayan extraído los corchetes
-      -- así que intentamos leer el contenido de la cadena para saber si define
-      -- un formato de lista válido en Haskell
-      case readMaybe s :: Maybe [Char] of
-        -- Si logró leerse como una lista, la devolvemos asociandole el tipo Char
-        Just cs -> cs
-        -- Si no logró leerse como lista, notificamos qel error
-        Nothing -> error $ "Formato de lista no reconocido: " ++ s ++ ". Formato esperado: [Char]"
-
+      -- Intentamos nuevamente leerla como rango
+      case tryRange str of
+        -- Y devolvemos el rango en caso de obtenerlo
+        Just rs -> rs
+        -- En caso de no encontrarlo
+        Nothing ->
+          -- Intentamos agregar corchetes al contenido de la cadena para saber si
+          -- así, podemos definir una lista por extnsión válida en Haskell
+          case readMaybe ("[" ++ str ++ "]") :: Maybe [Char] of
+          -- Si logró leerse como una lista, la devolvemos asociandole el tipo Char
+            Just cs -> cs
+            -- Si no logró leerse como lista, notificamos el error
+            Nothing -> error $ "Formato de lista no reconocido: " ++ str ++ ". Formato esperado: [Char]"
 
 -- ------------------------------------------------------------------------------
 -- Verificacion para eliminar de una cadena corchetes exteriores que puedan

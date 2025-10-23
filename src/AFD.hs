@@ -193,21 +193,41 @@ findFinalStates :: String -> [SuperState] -> [String]
 -- tener el elemento inicial de la tupla (El estado)
 findFinalStates finalStateAFN allSuperStates = [name | (name, afnStates) <- allSuperStates, finalStateAFN `elem` afnStates]
 
-
+-- ------------------------------------------------------------------------------
+-- Función que realiza la el prosesamiento de un caracter 'c' con un estado 'q' con
+-- una lista de trancisiones, si no existe la transicion o si hay mas de una, devuelve
+-- un error.
+-- 
+-- x, el caracter a procesar
+-- estadoA, el estado que se usará para la transicion
+-- transiciones, todas las transiciones disponibles
+-- ------------------------------------------------------------------------------
 funcionTransicionCaracter :: Char -> String -> [Trans_afd] -> String
-funcionTransicionCaracter x estadoA ys = do
-        let resultado = buscarEstados x estadoA ys
+funcionTransicionCaracter x estadoA transiciones = do
+        let resultado = buscarEstados x estadoA transiciones
         case resultado of
             [] -> error "No hay una transicion dispoble"
-            (estadoI, c, estadoF):[] -> estadoF
+            [(estadoI, c, estadoF)] -> estadoF
             _ -> error "El automata es no determinista"
 
+-- ------------------------------------------------------------------------------
+-- Funcion que busca todas las transiciones posibles con el caracter 'c' y el estado
+-- 'q'
+-- 
+-- x, el caracter a procesar
+-- estadoA, el estado que se usará para la transicion
+-- transiciones, todas las transiciones disponibles
+-- ------------------------------------------------------------------------------
 buscarEstados :: Char -> String -> [Trans_afd] -> [Trans_afd]
-buscarEstados x estadoA ys = [transicion | transicion@(q1, c, _) <- ys, q1 == estadoA, c == x]
+buscarEstados x estadoA transiciones = [transicion | transicion@(q1, c, _) <- transiciones, q1 == estadoA, c == x]
 
-funcionTransicionCadena :: String -> String -> [Trans_afd] -> String
-funcionTransicionCadena [] estadoA ys = estadoA
-funcionTransicionCadena (c:cs) estadoA ys = funcionTransicionCadena cs (funcionTransicionCaracter c estadoA ys) ys
-
+-- ------------------------------------------------------------------------------
+-- Función auxiliar que dado un caracter, un estado y una lista de transiciones
+-- revisa si hay transiciones con el caracter y el estado dado
+-- 
+-- x, el caracter a procesar
+-- estadoA, el estado que se usará para la transicion
+-- transiciones, todas las transiciones disponibles
+-- ------------------------------------------------------------------------------
 hayTrancision :: Char -> String -> [Trans_afd] -> Bool
-hayTrancision x estadoA ys = not (null (buscarEstados x estadoA ys))
+hayTrancision x estadoA transiciones = not (null (buscarEstados x estadoA transiciones))

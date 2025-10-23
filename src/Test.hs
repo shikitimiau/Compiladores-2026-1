@@ -8,7 +8,6 @@
 -- | > Rodríguez Miranda Alexia
 -- | > Rosas Franco Diego Angel
 module Main where
-
 import Regex
 import AFNEp
 import AFN
@@ -19,6 +18,7 @@ import Test.QuickCheck -- Para hacer pruebas con aleatorieidad
 import Control.Exception (try, evaluate, SomeException) -- Para manejar las excepciones esperadas en las pruebas
 import Data.Char (chr) -- Actualmente usado para convertir enteros a caracteres
 
+import Text.Read (readMaybe)
 
 -- ------------------------------------------------------------------------------
 -- =============================================================================
@@ -317,14 +317,13 @@ especiales = "((;) + (\\+))"
 -- | especiales       |
 -- --------------------
 -- ------------------------------------------------------------------------------
-imp3 = "([c | c <- ['a'..'z'] ++ ['A'..'Z']]([c | c <- ['a'..'z'] ++ ['A'..'Z']]*)['0'..'9']*)#IDENTIFICADOR#"
+imp3 = "([['a'..'z'] ++ ['A'..'Z']]([['a'..'z'] ++ ['A'..'Z']]*)['0'..'9']*)#IDENTIFICADOR#"
         ++ " + ((0) + (['1'..'9']['0'..'9']*) + (-['1'..'9']['0'..'9']*))#ENTERO#"
         ++ " + ((\\+) + (-) + (\\*) + (/))#OPERADOR#"
         ++ " + ((<) + (>) + (=))#OPBOOL#"
         ++ " + ((:=))#ASIG#"
         ++ " + ((if) + (then) + (else) + (while) + (do))#RESERVADA#"
         ++ " + ((;) + (\\+))#ESPECIAL#"
-
 
 
 -- ------------------------------------------------------------------------------
@@ -1561,6 +1560,8 @@ testAFDmin_conflictoIg = minimizaAFD testAFD_conflictoIg
 testAFDmin_conflictoABCseccionado = minimizaAFD testAFD_conflictoABCseccionado
 
 
+abc = "['a'..'z']"
+identificador = "[['a'..'z'] ++ ['A'..'Z']][['a'..'z'] ++ ['A'..'Z']]*['0'..'9']*#IDENTIFICADOR#"
 -- ------------------------------------------------------------------------------
 -- ------------------------------------------------------------------------------
 -- Ejecucion de  todas las pruebas
@@ -1568,6 +1569,33 @@ testAFDmin_conflictoABCseccionado = minimizaAFD testAFD_conflictoABCseccionado
 -- ------------------------------------------------------------------------------
 main :: IO ()
 main = do
+  putStrLn "\n"
+  putStrLn "\n-- String -- "
+  print identificador
+
+  putStrLn "\n-- Regex -- "
+  -- print $ getRegex identificador
+
+  putStrLn "\n-- dentro de regex, obtiene el contenido entre corchetes --"
+  putStrLn "\ntail"
+  print (tail identificador)
+  print $ extractBracketed (tail identificador)
+  
+  putStrLn "\nexpandList [['a'..'z'] ++ ['A'..'Z']]"
+  -- print $ expandList "[['a'..'z'] ++ ['A'..'Z']]"
+
+  putStrLn "\n splitLists [['a'..'z'] ++ ['A'..'Z']]"
+  print $ splitLists "[['a'..'z'] ++ ['A'..'Z']]"
+  
+  putStrLn "\n getContent [['a'..'z']  ['A'..'Z']]"
+  print $ concatMap getContent ["[['a'..'z']  ['A'..'Z']]"]
+
+  putStrLn "\n unwrapBrackets abcdefghijklmnopqrstuvwxyz"
+  print $ unwrapBrackets "abcdefghijklmnopqrstuvwxyz"
+  putStrLn "\n"
+
+  print  (readMaybe ("['a'..'z']") :: Maybe [Char])
+  {--
   -- REGEX --
   putStrLn "---- Pruebas Expresiones Regulares Aleatorias ----"
   quickCheckWith stdArgs { maxSuccess = 1000 } pruebasgetRegex
@@ -1596,7 +1624,7 @@ main = do
   putStrLn "\n---- AFD mínimo ----"
   testAFDmin4
 
-  {--
+  
   -- REGEX IMP --
   putStrLn "\n---- Expresiones Regulares IMP ----"
   putStrLn "\n---- Identificadores ----"

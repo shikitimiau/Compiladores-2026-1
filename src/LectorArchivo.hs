@@ -13,7 +13,7 @@
 -- |    Este módulo implementa la lectura de un archivo .md y su procesamiento
 -- |    para poder generar una máquina discriminadora determinista.
 ---------------------------------------------------------------------------
-module Main where
+module LectorArchivo where
 
 import MDD
 import Regex

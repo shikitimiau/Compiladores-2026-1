@@ -22,6 +22,7 @@
 module MDD where
 
 import qualified Data.Set as Set
+import Data.Map
 import AFDmin
 import AFD
 
@@ -192,7 +193,7 @@ buscaFinal afd estado (x:cadena) = if (hayRegreso afd estado x) then
 -- c, el caracter que se uso para llegar al estadoF
 -- ------------------------------------------------------------------------------
 hayRegreso :: AFD -> String -> Char -> Bool
-hayRegreso afd estadoF c = not (null (buscarRegreso trancisiones estadoF c))
+hayRegreso afd estadoF c = not (Prelude.null (buscarRegreso trancisiones estadoF c))
                           where trancisiones = transicionesD afd
 
 -- ------------------------------------------------------------------------------

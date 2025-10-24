@@ -50,6 +50,7 @@ library
         AFN
         MDD
         Regex
+        LectorArchivo
     hs-source-dirs:   src
     
     build-depends:    

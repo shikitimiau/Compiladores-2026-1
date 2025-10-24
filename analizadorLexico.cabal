@@ -71,3 +71,12 @@ executable Test
         QuickCheck
     
     default-language: Haskell2010
+
+executable TestBinaryStr
+    main-is:         TestBinaryStr.hs
+    hs-source-dirs:  samples/binarystr
+    build-depends:
+        base >=4,
+        analizadorLexico,
+        QuickCheck
+    default-language: Haskell2010

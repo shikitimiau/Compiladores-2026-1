@@ -1,3 +1,9 @@
+reserved
+true + false + if + then + else + while
+funArith
+count1 + count0 + length + natValue 
+funStr
+concat + norm + rev
 id
 [['A'..'Z'] ++ ['a'..'z']][['A'..'Z'] ++ ['a'..'z']]*
 asig
@@ -10,13 +16,7 @@ funBool
 eq? + prefix? + suffix? + subStr?
 opBool
 < + > + == + >= + <=
-funStr
-concat + norm + rev
 opStr
 & + ! + | + ||
-funArith
-count1 + count0 + length + natValue 
 opArith
-(\\+) + (-) + (\\*) + (/)
-reserved
-true + false + if + then + else + while
+(\+) + (-) + (\*) + (/)

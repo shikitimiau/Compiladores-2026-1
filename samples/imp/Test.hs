@@ -1022,3 +1022,48 @@ main = do
 
   putStrLn "\n---- Coincidencia de AFDmin generado con AFDmin esperado ----"
   print afd_Eq
+
+
+main :: IO ()
+main = do
+
+    (cadena, tokens) <- procesarArchivo "text.md"
+
+    let lenguajeR = getRegex cadena
+    let mdd = getMDD cadena tokens
+
+    putStrLn "El lenguaje regular resultante es:"
+    print lenguajeR
+
+    putStrLn "\nLa mdd resultante es:"
+    print mdd
+
+    let 
+        cadena1 = "var1:=8;if+72"
+        resultado1 = procesarTokens cadena1 mdd
+        cadena2 = "skip;:=="
+        resultado2 = procesarTokens cadena2 mdd
+        cadena3 = "176+24-12+var27"
+        resultado3 = procesarTokens cadena3 mdd
+        cadena4 = "while:=not;var3andop"
+        resultado4 = procesarTokens cadena3 mdd
+
+    putStrLn "\nSe probara la cadena:" 
+    print cadena1
+    putStrLn "\nEl resultado fue:" 
+    print resultado1
+
+    putStrLn "\nSe probara la cadena:" 
+    print cadena2
+    putStrLn "\nEl resultado fue:" 
+    print resultado2
+
+    putStrLn "\nSe probara la cadena:" 
+    print cadena3
+    putStrLn "\nEl resultado fue:" 
+    print resultado3
+
+    putStrLn "\nSe probara la cadena:" 
+    print cadena4
+    putStrLn "\nEl resultado fue:" 
+    print resultado4

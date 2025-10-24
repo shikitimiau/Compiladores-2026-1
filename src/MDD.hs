@@ -117,7 +117,24 @@ afd_to_MDD afd tokens =MDD
 -- ------------------------------------------------------------------------------
 generarAsignaciones :: AFD -> Tokens -> [Trans_mdd]
 generarAsignaciones afd [] = []
-generarAsignaciones afd (x:tokens) = obtenerAsignacion afd x ++ generarAsignaciones afd tokens
+generarAsignaciones afd (x:tokens) = asignacionesFijas ++ asignacionesNuevas
+                    where
+                      asignacionesFijas = obtenerAsignacion afd x
+                      asignacionesNuevas = obtenerNuevos asignacionesFijas (generarAsignaciones afd tokens)
+
+-- ------------------------------------------------------------------------------
+-- Función que dadas dos listas de tranciciones de mdd devuelve las transiciones
+-- de la segunda lista que no comparten estados con los de laprimera lista.
+-- 
+-- existentes, las transiciones con estados fijos
+-- generados, las transiciones con posibles transiciones no validas
+-- ------------------------------------------------------------------------------
+obtenerNuevos :: [Trans_mdd] -> [Trans_mdd] -> [Trans_mdd]
+obtenerNuevos existentes generados =  toList nuevos
+                                    where
+                                        existentesL = fromList existentes
+                                        generadosL = fromList generados
+                                        nuevos = filterWithKey (\k _ -> k `notMember` existentesL) generadosL
 
 -- ------------------------------------------------------------------------------
 -- Función auxiliar que dado autómata finito determinista mínimo y un único token

@@ -30,7 +30,7 @@ type Archivo = String
 -- 
 -- archivo, el nombre del archivo
 -- ------------------------------------------------------------------------------
-cargarArchivo :: String -> IO [String]
+cargarArchivo :: FilePath -> IO [String]
 cargarArchivo archivo = do 
     contenido <- readFile archivo
     return $ filter (not . null) $ lines contenido
@@ -42,7 +42,7 @@ cargarArchivo archivo = do
 --
 -- archivo, el nombre del archivo
 -- ------------------------------------------------------------------------------
-procesarArchivo :: Archivo -> IO (String, [String])
+procesarArchivo :: FilePath -> IO (String, [String])
 procesarArchivo archivo = do
     lista <- cargarArchivo archivo
 

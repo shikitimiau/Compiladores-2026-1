@@ -1025,11 +1025,8 @@ main = do
   putStrLn "\n---- Coincidencia de AFDmin generado con AFDmin esperado ----"
   print afd_Eq
 
-
-  (cadena, tokens) <- procesarArchivo "../specs/IMP.md"
-
-  let lenguajeR = getRegex cadena
-  let mdd = getMDD cadena tokens
+  let lenguajeR = getRegex imp
+  let mdd = getMDD imp tokens
 
   putStrLn "El lenguaje regular resultante es:"
   print lenguajeR

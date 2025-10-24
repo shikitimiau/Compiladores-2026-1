@@ -51,7 +51,7 @@ data AFD = AFD {
   transicionesD :: [Trans_afd],
   inicialD :: String,
   finalD :: [String]
-} deriving (Show)
+} deriving (Show,Eq)
 
 
 -- ------------------------------------------------------------------------------
@@ -186,7 +186,7 @@ funcionTransicionCaracter :: Char -> String -> [Trans_afd] -> String
 funcionTransicionCaracter x estadoA transiciones = do
         let resultado = buscarEstados x estadoA transiciones
         case resultado of
-            [] -> error "No hay una transicion dispoble"
+            [] -> error "No hay una transicion disponible"
             [(estadoI, c, estadoF)] -> estadoF
             _ -> error "El automata es no determinista"
 

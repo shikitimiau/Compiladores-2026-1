@@ -9,6 +9,7 @@
 -- | > Rosas Franco Diego Angel
 module AFNEp where
 
+
 import qualified Data.Set as Set
 import Regex 
 
@@ -41,7 +42,6 @@ data AFNEp = AFNEp {
   inicial :: String,
   final :: String
 } deriving (Show, Eq)
-
 
 
 -- ------------------------------------------------------------------------------
@@ -168,7 +168,7 @@ expr_to_AFNEp_aux (Star a) n =
      -- especificamos como estado inicial q0 y como estado final q1
      inicial      = q0,
      final        = q1
-  }, n') --  El contador actualizado es: estados del automata a + 2 nuevos 
+  }, n') --  El contador actualizado es: estados del automata a + 2 nuevos
   where
     -- Construimos el automata que corresponde al parametro con el contador inicial n
     (m1, na) = expr_to_AFNEp_aux a n

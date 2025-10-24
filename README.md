@@ -31,4 +31,5 @@ El proyecto cuenta con archivos de ejecución especificos, que se ejecutarán al
 aquí se enlistan las operaciones posibles
 
     cabal run Test
-> Para ejecutar las diferentes pruebas del proyecto
+    cabal run TestBinaryStr
+Para ejecutar las diferentes pruebas del proyecto

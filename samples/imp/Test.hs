@@ -22,6 +22,9 @@ import Data.Char (chr) -- Actualmente usado para convertir enteros a caracteres
 
 import Text.Read (readMaybe)
 
+archivoIMP :: FilePath
+archivoIMP = "specs/IMP.md"
+
 -- ------------------------------------------------------------------------------
 -- =============================================================================
 --                                 Pruebas Regex
@@ -1025,8 +1028,10 @@ main = do
   putStrLn "\n---- Coincidencia de AFDmin generado con AFDmin esperado ----"
   print afd_Eq
 
-  let lenguajeR = getRegex imp
-  let mdd = getMDD imp tokens
+  (cadena, tokens) <- procesarArchivo archivoIMP
+
+  let lenguajeR = getRegex cadena
+  let mdd = getMDD cadena tokens
 
   putStrLn "El lenguaje regular resultante es:"
   print lenguajeR
@@ -1042,7 +1047,7 @@ main = do
     cadena3 = "176+24-12+var27"
     resultado3 = procesarTokens cadena3 mdd
     cadena4 = "while:=not;var3andop"
-    resultado4 = procesarTokens cadena3 mdd
+    resultado4 = procesarTokens cadena4 mdd
 
   putStrLn "\nSe probara la cadena:" 
   print cadena1
